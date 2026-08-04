@@ -1,0 +1,138 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum ProductType {
+  PHONE
+  ACCESSORY
+  TABLET
+  LAPTOP
+  SMART_WATCH
+  OTHER
+}
+
+enum TrackingType {
+  SERIALIZED
+  QUANTITY
+}
+
+enum UnitStatus {
+  AVAILABLE
+  IN_SHOP
+  SOLD
+  RETURNED
+  DAMAGED
+}
+
+enum Location {
+  WAREHOUSE
+  SHOP
+}
+
+enum MovementType {
+  STOCK_IN
+  TRANSFER
+  SALE
+  RETURN
+  DAMAGE
+  LOSS
+}
+
+model User {
+  id             String          @id @default(uuid())
+  name           String
+  email          String          @unique
+  password       String
+  role           UserRole        @default(USER)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  stockMovements StockMovement[]
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id             String          @id @default(uuid())
+  name           String
+  brand          String
+  productType    ProductType
+  trackingType   TrackingType    @default(QUANTITY)
+  categoryId     String
+  category       Category        @relation(fields: [categoryId], references: [id])
+  sellingPrice   Decimal         @db.Decimal(10, 2)
+  minimumStock   Int             @default(0)
+  image          String?
+  description    String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  inventory      Inventory[]
+  productUnits   ProductUnit[]
+  stockMovements StockMovement[]
+}
+
+model ProductUnit {
+  id             String          @id @default(uuid())
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  serialNumber   String?         @unique
+  imei           String?         @unique
+  storage        Int?
+  color          String?
+  purchasePrice  Decimal?        @db.Decimal(10, 2)
+  location       Location
+  status         UnitStatus      @default(AVAILABLE)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  recievedAt     DateTime        @default(now())  
+  stockMovements StockMovement[]
+}
+
+model Inventory {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location  Location
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, location])
+}
+
+model StockMovement {
+  id            String       @id @default(uuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id])
+  productUnitId String?
+  productUnit   ProductUnit? @relation(fields: [productUnitId], references: [id])
+  movementType  MovementType
+  fromLocation  Location?
+  toLocation    Location?
+  quantity      Int
+  costPrice     Decimal?     @db.Decimal(10, 2)
+  note          String?
+  createdById   String
+  createdBy     User         @relation(fields: [createdById], references: [id])
+  createdAt     DateTime     @default(now())
+}
