@@ -61,6 +61,7 @@ model User {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   stockMovements StockMovement[]
+  stockBatches   StockBatch[]
 }
 
 model Category {
@@ -105,7 +106,7 @@ model ProductUnit {
   status         UnitStatus      @default(AVAILABLE)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
-  recievedAt     DateTime        @default(now())  
+  recievedAt     DateTime        @default(now())
   stockMovements StockMovement[]
 }
 
@@ -126,6 +127,8 @@ model StockMovement {
   product       Product      @relation(fields: [productId], references: [id])
   productUnitId String?
   productUnit   ProductUnit? @relation(fields: [productUnitId], references: [id])
+  stockBatchId  String?
+  stockBatch    StockBatch?  @relation(fields: [stockBatchId], references: [id])
   movementType  MovementType
   fromLocation  Location?
   toLocation    Location?
@@ -135,4 +138,14 @@ model StockMovement {
   createdById   String
   createdBy     User         @relation(fields: [createdById], references: [id])
   createdAt     DateTime     @default(now())
+}
+
+model StockBatch {
+  id             String          @id @default(cuid())
+  reference      String?
+  note           String?
+  createdById    String
+  createdBy      User            @relation(fields: [createdById], references: [id])
+  createdAt      DateTime        @default(now())
+  stockMovements StockMovement[]
 }
