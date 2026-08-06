@@ -142,7 +142,7 @@ model StockMovement {
 
 model StockBatch {
   id             String          @id @default(cuid())
-  reference      String?
+  reference      String?         @unique
   note           String?
   createdById    String
   createdBy      User            @relation(fields: [createdById], references: [id])
