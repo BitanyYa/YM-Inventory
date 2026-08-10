@@ -23,7 +23,7 @@ export class StockService {
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.reference) {
-        const existingBatch = await tx.stockBatch.findUnique({
+        const existingBatch = await tx.stockBatch.findFirst({
           where: { reference: dto.reference },
         });
 

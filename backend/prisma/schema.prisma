@@ -94,20 +94,21 @@ model Product {
 }
 
 model ProductUnit {
-  id             String          @id @default(uuid())
-  productId      String
-  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  serialNumber   String?         @unique
-  imei           String?         @unique
-  storage        Int?
-  color          String?
-  purchasePrice  Decimal?        @db.Decimal(10, 2)
-  location       Location
-  status         UnitStatus      @default(AVAILABLE)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  recievedAt     DateTime        @default(now())
-  stockMovements StockMovement[]
+  id                 String              @id @default(uuid())
+  productId          String
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  serialNumber       String?             @unique
+  imei               String?             @unique
+  storage            Int?
+  color              String?
+  purchasePrice      Decimal?            @db.Decimal(10, 2)
+  location           Location
+  status             UnitStatus          @default(AVAILABLE)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  recievedAt         DateTime            @default(now())
+  stockMovements     StockMovement[]
+  stockMovementUnits StockMovementUnit[]
 }
 
 model Inventory {
@@ -122,22 +123,23 @@ model Inventory {
 }
 
 model StockMovement {
-  id            String       @id @default(uuid())
+  id            String              @id @default(uuid())
   productId     String
-  product       Product      @relation(fields: [productId], references: [id])
+  product       Product             @relation(fields: [productId], references: [id])
   productUnitId String?
-  productUnit   ProductUnit? @relation(fields: [productUnitId], references: [id])
+  productUnit   ProductUnit?        @relation(fields: [productUnitId], references: [id])
   stockBatchId  String?
-  stockBatch    StockBatch?  @relation(fields: [stockBatchId], references: [id])
+  stockBatch    StockBatch?         @relation(fields: [stockBatchId], references: [id])
   movementType  MovementType
   fromLocation  Location?
   toLocation    Location?
   quantity      Int
-  costPrice     Decimal?     @db.Decimal(10, 2)
+  costPrice     Decimal?            @db.Decimal(10, 2)
   note          String?
   createdById   String
-  createdBy     User         @relation(fields: [createdById], references: [id])
-  createdAt     DateTime     @default(now())
+  createdBy     User                @relation(fields: [createdById], references: [id])
+  createdAt     DateTime            @default(now())
+  movementUnits StockMovementUnit[]
 }
 
 model StockBatch {
@@ -148,4 +150,16 @@ model StockBatch {
   createdBy      User            @relation(fields: [createdById], references: [id])
   createdAt      DateTime        @default(now())
   stockMovements StockMovement[]
+}
+
+model StockMovementUnit {
+  id              String        @id @default(cuid())
+  stockMovementId String
+  productUnitId   String
+  stockMovement   StockMovement @relation(fields: [stockMovementId], references: [id], onDelete: Cascade)
+  productUnit     ProductUnit   @relation(fields: [productUnitId], references: [id], onDelete: Cascade)
+
+  @@unique([stockMovementId, productUnitId])
+  @@index([stockMovementId])
+  @@index([productUnitId])
 }
