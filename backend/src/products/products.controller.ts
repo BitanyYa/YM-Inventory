@@ -54,6 +54,24 @@ export class ProductsController {
     return this.productsService.findOne(id);
   }
 
+  @Get(':id/units')
+  @ApiOperation({
+    summary: 'Get all ProductUnits for a SERIALIZED product ordered by creation date',
+  })
+  @ApiParam({ name: 'id', description: 'Product UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of product units belonging to the serialized product',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Product is QUANTITY-tracked (units only apply to SERIALIZED products)',
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async findUnits(@Param('id') id: string) {
+    return this.productsService.findUnits(id);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update product by ID' })
   @ApiParam({ name: 'id', description: 'Product UUID' })

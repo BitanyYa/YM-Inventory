@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, TrackingType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -78,6 +78,41 @@ export class ProductsService {
     }
 
     return product;
+  }
+
+  async findUnits(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID "${productId}" not found`);
+    }
+
+    if (product.trackingType !== TrackingType.SERIALIZED) {
+      throw new BadRequestException(
+        `Product "${product.name}" is QUANTITY-tracked. Product units are only applicable to SERIALIZED products.`,
+      );
+    }
+
+    return this.prisma.productUnit.findMany({
+      where: { productId },
+      select: {
+        id: true,
+        imei: true,
+        serialNumber: true,
+        storage: true,
+        color: true,
+        purchasePrice: true,
+        location: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
   }
 
   async update(id: string, dto: UpdateProductDto) {
