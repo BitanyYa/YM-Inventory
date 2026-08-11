@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ReceiveStockDto } from './dto/receive-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
 import { SellStockDto } from './dto/sell-stock.dto';
+import { ReturnStockDto } from './dto/return-stock.dto';
 
 @Injectable()
 export class StockService {
@@ -224,29 +225,25 @@ export class StockService {
 
         quantityTransferred = dto.quantity;
 
-        const updateResult = await tx.inventory.updateMany({
-          where: {
-            productId: product.id,
-            location: Location.WAREHOUSE,
-            quantity: { gte: dto.quantity },
-          },
-          data: {
-            quantity: { decrement: dto.quantity },
-          },
-        });
-
-        if (updateResult.count === 0) {
-          throw new BadRequestException(
-            `Insufficient warehouse stock for product "${product.name}".`,
-          );
-        }
-
-        updatedWarehouseInventory = await tx.inventory.findUnique({
+        const warehouseInventory = await tx.inventory.findUnique({
           where: {
             productId_location: {
               productId: product.id,
               location: Location.WAREHOUSE,
             },
+          },
+        });
+
+        if (!warehouseInventory || warehouseInventory.quantity < dto.quantity) {
+          throw new BadRequestException(
+            `Insufficient warehouse stock for product "${product.name}". Requested: ${dto.quantity}, Available: ${warehouseInventory?.quantity || 0}`,
+          );
+        }
+
+        updatedWarehouseInventory = await tx.inventory.update({
+          where: { id: warehouseInventory.id },
+          data: {
+            quantity: { decrement: dto.quantity },
           },
         });
 
@@ -338,11 +335,24 @@ export class StockService {
           }
         }
 
-        const updateUnitsResult = await tx.productUnit.updateMany({
+        const warehouseInventory = await tx.inventory.findUnique({
+          where: {
+            productId_location: {
+              productId: product.id,
+              location: Location.WAREHOUSE,
+            },
+          },
+        });
+
+        if (!warehouseInventory || warehouseInventory.quantity < dto.unitIds.length) {
+          throw new BadRequestException(
+            `Insufficient warehouse stock quantity for product "${product.name}". Requested: ${dto.unitIds.length}, Available: ${warehouseInventory?.quantity || 0}`,
+          );
+        }
+
+        await tx.productUnit.updateMany({
           where: {
             id: { in: dto.unitIds },
-            location: Location.WAREHOUSE,
-            status: UnitStatus.AVAILABLE,
           },
           data: {
             location: Location.SHOP,
@@ -350,35 +360,10 @@ export class StockService {
           },
         });
 
-        if (updateUnitsResult.count !== dto.unitIds.length) {
-          throw new BadRequestException(
-            'One or more selected units are no longer available in the warehouse',
-          );
-        }
-
-        const updateInventoryResult = await tx.inventory.updateMany({
-          where: {
-            productId: product.id,
-            location: Location.WAREHOUSE,
-            quantity: { gte: dto.unitIds.length },
-          },
+        updatedWarehouseInventory = await tx.inventory.update({
+          where: { id: warehouseInventory.id },
           data: {
             quantity: { decrement: dto.unitIds.length },
-          },
-        });
-
-        if (updateInventoryResult.count === 0) {
-          throw new BadRequestException(
-            `Insufficient warehouse stock quantity for product "${product.name}".`,
-          );
-        }
-
-        updatedWarehouseInventory = await tx.inventory.findUnique({
-          where: {
-            productId_location: {
-              productId: product.id,
-              location: Location.WAREHOUSE,
-            },
           },
         });
 
@@ -477,7 +462,7 @@ export class StockService {
 
         quantitySold = dto.quantity;
 
-        const updateResult = await tx.inventory.updateMany({
+        const updateInventoryResult = await tx.inventory.updateMany({
           where: {
             productId: product.id,
             location: Location.SHOP,
@@ -488,9 +473,18 @@ export class StockService {
           },
         });
 
-        if (updateResult.count === 0) {
+        if (updateInventoryResult.count === 0) {
+          const shopInventory = await tx.inventory.findUnique({
+            where: {
+              productId_location: {
+                productId: product.id,
+                location: Location.SHOP,
+              },
+            },
+          });
+
           throw new BadRequestException(
-            `Insufficient shop stock for product "${product.name}".`,
+            `Insufficient shop stock for product "${product.name}". Requested: ${dto.quantity}, Available: ${shopInventory?.quantity || 0}`,
           );
         }
 
@@ -650,6 +644,207 @@ export class StockService {
           shopInventory: updatedShopInventory,
           quantitySold,
           soldUnits,
+        };
+      }
+    });
+  }
+
+  async returnStock(dto: ReturnStockDto, userId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID "${dto.productId}" not found`);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      let updatedWarehouseInventory;
+      let quantityReturned = 0;
+      let returnedUnits: any[] = [];
+
+      if (product.trackingType === TrackingType.QUANTITY) {
+        if (!dto.quantity || dto.quantity <= 0) {
+          throw new BadRequestException(
+            'quantity is required and must be greater than 0 for QUANTITY products',
+          );
+        }
+
+        quantityReturned = dto.quantity;
+
+        const warehouseInventory = await tx.inventory.findUnique({
+          where: {
+            productId_location: {
+              productId: product.id,
+              location: Location.WAREHOUSE,
+            },
+          },
+        });
+
+        if (warehouseInventory) {
+          updatedWarehouseInventory = await tx.inventory.update({
+            where: { id: warehouseInventory.id },
+            data: {
+              quantity: { increment: dto.quantity },
+            },
+          });
+        } else {
+          updatedWarehouseInventory = await tx.inventory.create({
+            data: {
+              productId: product.id,
+              location: Location.WAREHOUSE,
+              quantity: dto.quantity,
+            },
+          });
+        }
+
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            movementType: MovementType.RETURN,
+            fromLocation: Location.SHOP,
+            toLocation: Location.WAREHOUSE,
+            quantity: dto.quantity,
+            createdById: userId,
+            note: dto.note || null,
+          },
+        });
+
+        return {
+          movement,
+          warehouseInventory: updatedWarehouseInventory,
+          quantityReturned,
+          returnedUnits: [],
+        };
+      } else if (product.trackingType === TrackingType.SERIALIZED) {
+        if (!dto.unitIds || dto.unitIds.length === 0) {
+          throw new BadRequestException(
+            'unitIds array is required and cannot be empty for SERIALIZED products',
+          );
+        }
+
+        if (new Set(dto.unitIds).size !== dto.unitIds.length) {
+          throw new BadRequestException('Duplicate unit IDs found in request');
+        }
+
+        quantityReturned = dto.unitIds.length;
+
+        const units = await tx.productUnit.findMany({
+          where: {
+            id: { in: dto.unitIds },
+          },
+        });
+
+        if (units.length !== dto.unitIds.length) {
+          throw new NotFoundException(
+            'One or more requested product units were not found',
+          );
+        }
+
+        for (const unit of units) {
+          if (unit.productId !== product.id) {
+            throw new BadRequestException(
+              `Product unit "${unit.id}" does not belong to product "${product.name}"`,
+            );
+          }
+          if (unit.location !== Location.SHOP) {
+            throw new BadRequestException(
+              `Product unit "${unit.id}" is not currently located in SHOP (location: ${unit.location})`,
+            );
+          }
+          if (unit.status !== UnitStatus.SOLD) {
+            throw new BadRequestException(
+              `Product unit "${unit.id}" is not currently SOLD (status: ${unit.status})`,
+            );
+          }
+        }
+
+        const updateUnitsResult = await tx.productUnit.updateMany({
+          where: {
+            id: { in: dto.unitIds },
+            location: Location.SHOP,
+            status: UnitStatus.SOLD,
+          },
+          data: {
+            location: Location.WAREHOUSE,
+            status: UnitStatus.AVAILABLE,
+          },
+        });
+
+        if (updateUnitsResult.count !== dto.unitIds.length) {
+          throw new BadRequestException(
+            'One or more selected units are no longer in SOLD status in the shop',
+          );
+        }
+
+        const warehouseInventory = await tx.inventory.findUnique({
+          where: {
+            productId_location: {
+              productId: product.id,
+              location: Location.WAREHOUSE,
+            },
+          },
+        });
+
+        if (warehouseInventory) {
+          updatedWarehouseInventory = await tx.inventory.update({
+            where: { id: warehouseInventory.id },
+            data: {
+              quantity: { increment: dto.unitIds.length },
+            },
+          });
+        } else {
+          updatedWarehouseInventory = await tx.inventory.create({
+            data: {
+              productId: product.id,
+              location: Location.WAREHOUSE,
+              quantity: dto.unitIds.length,
+            },
+          });
+        }
+
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            movementType: MovementType.RETURN,
+            fromLocation: Location.SHOP,
+            toLocation: Location.WAREHOUSE,
+            quantity: dto.unitIds.length,
+            createdById: userId,
+            note: dto.note || null,
+          },
+        });
+
+        for (const unitId of dto.unitIds) {
+          await tx.stockMovementUnit.create({
+            data: {
+              stockMovementId: movement.id,
+              productUnitId: unitId,
+            },
+          });
+        }
+
+        returnedUnits = await tx.productUnit.findMany({
+          where: {
+            id: { in: dto.unitIds },
+          },
+          select: {
+            id: true,
+            imei: true,
+            serialNumber: true,
+            storage: true,
+            color: true,
+            purchasePrice: true,
+            location: true,
+            status: true,
+          },
+        });
+
+        return {
+          movement,
+          warehouseInventory: updatedWarehouseInventory,
+          quantityReturned,
+          returnedUnits,
         };
       }
     });

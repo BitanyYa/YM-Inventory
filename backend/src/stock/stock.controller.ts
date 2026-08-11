@@ -11,6 +11,7 @@ import { StockService } from './stock.service';
 import { ReceiveStockDto } from './dto/receive-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
 import { SellStockDto } from './dto/sell-stock.dto';
+import { ReturnStockDto } from './dto/return-stock.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -75,5 +76,25 @@ export class StockController {
     @GetUser('id') userId: string,
   ) {
     return this.stockService.sellStock(dto, userId);
+  }
+
+  @Post('return')
+  @ApiOperation({
+    summary: 'Return stock from Shop back to Warehouse for QUANTITY or SERIALIZED products',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Stock successfully returned to Warehouse',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error or invalid unit status (must be SOLD in SHOP)',
+  })
+  @ApiResponse({ status: 404, description: 'Product or ProductUnit not found' })
+  async returnStock(
+    @Body() dto: ReturnStockDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.stockService.returnStock(dto, userId);
   }
 }
