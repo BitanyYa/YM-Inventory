@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -12,6 +12,7 @@ import { ReceiveStockDto } from './dto/receive-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
 import { SellStockDto } from './dto/sell-stock.dto';
 import { ReturnStockDto } from './dto/return-stock.dto';
+import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -19,6 +20,19 @@ import { ReturnStockDto } from './dto/return-stock.dto';
 @Controller('stock')
 export class StockController {
   constructor(private readonly stockService: StockService) {}
+
+  @Get('movements')
+  @ApiOperation({
+    summary:
+      'Get stock movement history with optional filters (productId, movementType, fromLocation, toLocation, startDate, endDate)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of stock movements ordered newest first with full relations',
+  })
+  async getMovements(@Query() query: QueryStockMovementDto) {
+    return this.stockService.findMovements(query);
+  }
 
   @Post('receive')
   @ApiOperation({

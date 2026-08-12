@@ -4,12 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Location, MovementType, TrackingType, UnitStatus } from '@prisma/client';
+import { Location, MovementType, Prisma, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReceiveStockDto } from './dto/receive-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
 import { SellStockDto } from './dto/sell-stock.dto';
 import { ReturnStockDto } from './dto/return-stock.dto';
+import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 
 @Injectable()
 export class StockService {
@@ -847,6 +848,66 @@ export class StockService {
           returnedUnits,
         };
       }
+    });
+  }
+
+  async findMovements(query: QueryStockMovementDto) {
+    const where: Prisma.StockMovementWhereInput = {};
+
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+    if (query.movementType) {
+      where.movementType = query.movementType;
+    }
+    if (query.fromLocation) {
+      where.fromLocation = query.fromLocation;
+    }
+    if (query.toLocation) {
+      where.toLocation = query.toLocation;
+    }
+    if (query.startDate || query.endDate) {
+      where.createdAt = {};
+      if (query.startDate) {
+        where.createdAt.gte = new Date(query.startDate);
+      }
+      if (query.endDate) {
+        where.createdAt.lte = new Date(query.endDate);
+      }
+    }
+
+    return this.prisma.stockMovement.findMany({
+      where,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        product: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        stockBatch: true,
+        movementUnits: {
+          include: {
+            productUnit: {
+              select: {
+                id: true,
+                imei: true,
+                serialNumber: true,
+                storage: true,
+                color: true,
+                location: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
     });
   }
 }

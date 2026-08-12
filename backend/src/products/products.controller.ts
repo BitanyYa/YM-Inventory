@@ -21,6 +21,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { QueryProductUnitDto } from './dto/query-product-unit.dto';
 
 @ApiTags('products')
 @ApiBearerAuth()
@@ -43,6 +44,31 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'List of products ordered by newest first' })
   async findAll(@Query() query: QueryProductDto) {
     return this.productsService.findAll(query);
+  }
+
+  @Get('units')
+  @ApiOperation({
+    summary:
+      'Search ProductUnits with optional filters (imei, serialNumber, productId, location, status)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of matching ProductUnits ordered newest first with product details',
+  })
+  async findAllUnits(@Query() query: QueryProductUnitDto) {
+    return this.productsService.findAllUnits(query);
+  }
+
+  @Get('units/:unitId')
+  @ApiOperation({ summary: 'Get ProductUnit details by unit ID' })
+  @ApiParam({ name: 'unitId', description: 'ProductUnit UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'ProductUnit details with associated product info',
+  })
+  @ApiResponse({ status: 404, description: 'ProductUnit not found' })
+  async findUnit(@Param('unitId') unitId: string) {
+    return this.productsService.findUnit(unitId);
   }
 
   @Get(':id')

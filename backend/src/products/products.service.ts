@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { QueryProductUnitDto } from './dto/query-product-unit.dto';
 
 @Injectable()
 export class ProductsService {
@@ -65,6 +66,55 @@ export class ProductsService {
     });
   }
 
+  async findAllUnits(query: QueryProductUnitDto) {
+    const where: Prisma.ProductUnitWhereInput = {};
+
+    if (query.imei) {
+      where.imei = query.imei;
+    }
+    if (query.serialNumber) {
+      where.serialNumber = query.serialNumber;
+    }
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+    if (query.location) {
+      where.location = query.location;
+    }
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    return this.prisma.productUnit.findMany({
+      where,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        imei: true,
+        serialNumber: true,
+        storage: true,
+        color: true,
+        purchasePrice: true,
+        location: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            brand: true,
+            productType: true,
+            trackingType: true,
+            sellingPrice: true,
+          },
+        },
+      },
+    });
+  }
+
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -78,6 +128,42 @@ export class ProductsService {
     }
 
     return product;
+  }
+
+  async findUnit(unitId: string) {
+    const unit = await this.prisma.productUnit.findUnique({
+      where: { id: unitId },
+      select: {
+        id: true,
+        imei: true,
+        serialNumber: true,
+        storage: true,
+        color: true,
+        purchasePrice: true,
+        location: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            brand: true,
+            productType: true,
+            trackingType: true,
+            sellingPrice: true,
+            minimumStock: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!unit) {
+      throw new NotFoundException(`Product unit with ID "${unitId}" not found`);
+    }
+
+    return unit;
   }
 
   async findUnits(productId: string) {
