@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MovementType, Prisma } from '@prisma/client';
+import { Location, MovementType, Prisma, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueryStockReportDto } from './dto/query-stock-report.dto';
 
@@ -132,6 +132,149 @@ export class ReportsService {
       byProduct: Array.from(productMap.values()).sort((a, b) =>
         a.productName.localeCompare(b.productName),
       ),
+    };
+  }
+
+  async getInventoryValueReport() {
+    const products = await this.prisma.product.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        inventory: true,
+        productUnits: {
+          where: {
+            status: {
+              in: [UnitStatus.AVAILABLE, UnitStatus.IN_SHOP],
+            },
+          },
+          select: {
+            id: true,
+            purchasePrice: true,
+            location: true,
+            status: true,
+          },
+        },
+        stockMovements: {
+          where: {
+            movementType: MovementType.STOCK_IN,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            quantity: true,
+            costPrice: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    let totalInventoryValue = 0;
+    let warehouseValue = 0;
+    let shopValue = 0;
+
+    const byProduct: any[] = [];
+
+    for (const product of products) {
+      const warehouseRecord = product.inventory.find(
+        (i) => i.location === Location.WAREHOUSE,
+      );
+      const shopRecord = product.inventory.find(
+        (i) => i.location === Location.SHOP,
+      );
+
+      const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+      const shopQuantity = shopRecord ? shopRecord.quantity : 0;
+      const totalQuantity = warehouseQuantity + shopQuantity;
+
+      let inventoryValue = 0;
+      let unitCost: number | null = null;
+      let productWarehouseVal = 0;
+      let productShopVal = 0;
+
+      if (product.trackingType === TrackingType.SERIALIZED) {
+        const warehouseUnits = product.productUnits.filter(
+          (u) => u.location === Location.WAREHOUSE && u.status === UnitStatus.AVAILABLE,
+        );
+        const shopUnits = product.productUnits.filter(
+          (u) => u.location === Location.SHOP && u.status === UnitStatus.IN_SHOP,
+        );
+
+        productWarehouseVal = warehouseUnits.reduce(
+          (acc, u) => acc + (u.purchasePrice ? Number(u.purchasePrice) : 0),
+          0,
+        );
+        productShopVal = shopUnits.reduce(
+          (acc, u) => acc + (u.purchasePrice ? Number(u.purchasePrice) : 0),
+          0,
+        );
+
+        inventoryValue = Number((productWarehouseVal + productShopVal).toFixed(2));
+        unitCost = totalQuantity > 0 ? Number((inventoryValue / totalQuantity).toFixed(2)) : null;
+      } else if (product.trackingType === TrackingType.QUANTITY) {
+        if (totalQuantity > 0) {
+          let qtyNeeded = totalQuantity;
+          let calculatedVal = 0;
+          let lastCostPrice = 0;
+
+          for (const sm of product.stockMovements) {
+            if (qtyNeeded <= 0) break;
+            const cost = sm.costPrice ? Number(sm.costPrice) : 0;
+            if (cost > 0) {
+              lastCostPrice = cost;
+            }
+            const takeQty = Math.min(qtyNeeded, sm.quantity);
+            calculatedVal += takeQty * cost;
+            qtyNeeded -= takeQty;
+          }
+
+          if (qtyNeeded > 0 && lastCostPrice > 0) {
+            calculatedVal += qtyNeeded * lastCostPrice;
+          }
+
+          inventoryValue = Number(calculatedVal.toFixed(2));
+          unitCost = Number((inventoryValue / totalQuantity).toFixed(2));
+
+          productWarehouseVal = Number(
+            (warehouseQuantity * (inventoryValue / totalQuantity)).toFixed(2),
+          );
+          productShopVal = Number((inventoryValue - productWarehouseVal).toFixed(2));
+        } else {
+          inventoryValue = 0;
+          unitCost = 0;
+          productWarehouseVal = 0;
+          productShopVal = 0;
+        }
+      }
+
+      totalInventoryValue += inventoryValue;
+      warehouseValue += productWarehouseVal;
+      shopValue += productShopVal;
+
+      byProduct.push({
+        productId: product.id,
+        productName: product.name,
+        trackingType: product.trackingType,
+        warehouseQuantity,
+        shopQuantity,
+        totalQuantity,
+        unitCost,
+        inventoryValue,
+      });
+    }
+
+    return {
+      summary: {
+        totalInventoryValue: Number(totalInventoryValue.toFixed(2)),
+        warehouseValue: Number(warehouseValue.toFixed(2)),
+        shopValue: Number(shopValue.toFixed(2)),
+      },
+      byProduct,
     };
   }
 }

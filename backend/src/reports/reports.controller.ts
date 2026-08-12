@@ -28,4 +28,17 @@ export class ReportsController {
   async getStockMovementsReport(@Query() query: QueryStockReportDto) {
     return this.reportsService.getStockMovementsReport(query);
   }
+
+  @Get('inventory-value')
+  @ApiOperation({
+    summary:
+      'Get current inventory valuation report (warehouse value, shop value, total inventory value, and per-product valuation)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inventory valuation report generated successfully',
+  })
+  async getInventoryValueReport() {
+    return this.reportsService.getInventoryValueReport();
+  }
 }
