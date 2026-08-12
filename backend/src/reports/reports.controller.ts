@@ -8,6 +8,8 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ReportsService } from './reports.service';
 import { QueryStockReportDto } from './dto/query-stock-report.dto';
+import { QuerySalesReportDto } from './dto/query-sales-report.dto';
+import { QueryProfitReportDto } from './dto/query-profit-report.dto';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -40,5 +42,39 @@ export class ReportsController {
   })
   async getInventoryValueReport() {
     return this.reportsService.getInventoryValueReport();
+  }
+
+  @Get('sales')
+  @ApiOperation({
+    summary:
+      'Get aggregated sales report (total sales count, total quantity sold, total revenue value, and per-product sales breakdown)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Sales report generated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. startDate after endDate or invalid enum format)',
+  })
+  async getSalesReport(@Query() query: QuerySalesReportDto) {
+    return this.reportsService.getSalesReport(query);
+  }
+
+  @Get('profit')
+  @ApiOperation({
+    summary:
+      'Get gross profit report (revenue, COGS, gross profit, gross margin %, and per-product profit breakdown)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profit report generated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. startDate after endDate or invalid enum format)',
+  })
+  async getProfitReport(@Query() query: QueryProfitReportDto) {
+    return this.reportsService.getProfitReport(query);
   }
 }
