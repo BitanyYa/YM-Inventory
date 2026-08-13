@@ -95,15 +95,15 @@ export class StockController {
 
   @Post('return')
   @ApiOperation({
-    summary: 'Return stock from Shop back to Warehouse for QUANTITY or SERIALIZED products',
+    summary: 'Return sold stock to Warehouse or Shop for QUANTITY or SERIALIZED products',
   })
   @ApiResponse({
     status: 201,
-    description: 'Stock successfully returned to Warehouse',
+    description: 'Stock successfully returned to destination location',
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation error or invalid unit status (must be SOLD in SHOP)',
+    description: 'Validation error, invalid destination location, inactive product, or invalid unit status (must be SOLD)',
   })
   @ApiResponse({ status: 404, description: 'Product or ProductUnit not found' })
   async returnStock(

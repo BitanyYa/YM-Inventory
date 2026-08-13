@@ -660,8 +660,25 @@ export class StockService {
       throw new NotFoundException(`Product with ID "${dto.productId}" not found`);
     }
 
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `Product "${product.name}" is soft-deleted/inactive and cannot accept stock returns`,
+      );
+    }
+
+    const destinationLocation = dto.toLocation || Location.WAREHOUSE;
+
+    if (
+      destinationLocation !== Location.WAREHOUSE &&
+      destinationLocation !== Location.SHOP
+    ) {
+      throw new BadRequestException(
+        'toLocation must be either WAREHOUSE or SHOP',
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      let updatedWarehouseInventory;
+      let updatedDestinationInventory;
       let quantityReturned = 0;
       let returnedUnits: any[] = [];
 
@@ -674,27 +691,27 @@ export class StockService {
 
         quantityReturned = dto.quantity;
 
-        const warehouseInventory = await tx.inventory.findUnique({
+        const existingInventory = await tx.inventory.findUnique({
           where: {
             productId_location: {
               productId: product.id,
-              location: Location.WAREHOUSE,
+              location: destinationLocation,
             },
           },
         });
 
-        if (warehouseInventory) {
-          updatedWarehouseInventory = await tx.inventory.update({
-            where: { id: warehouseInventory.id },
+        if (existingInventory) {
+          updatedDestinationInventory = await tx.inventory.update({
+            where: { id: existingInventory.id },
             data: {
               quantity: { increment: dto.quantity },
             },
           });
         } else {
-          updatedWarehouseInventory = await tx.inventory.create({
+          updatedDestinationInventory = await tx.inventory.create({
             data: {
               productId: product.id,
-              location: Location.WAREHOUSE,
+              location: destinationLocation,
               quantity: dto.quantity,
             },
           });
@@ -705,7 +722,7 @@ export class StockService {
             productId: product.id,
             movementType: MovementType.RETURN,
             fromLocation: Location.SHOP,
-            toLocation: Location.WAREHOUSE,
+            toLocation: destinationLocation,
             quantity: dto.quantity,
             createdById: userId,
             note: dto.note || null,
@@ -714,7 +731,14 @@ export class StockService {
 
         return {
           movement,
-          warehouseInventory: updatedWarehouseInventory,
+          product: {
+            id: product.id,
+            name: product.name,
+            brand: product.brand,
+            trackingType: product.trackingType,
+          },
+          inventory: updatedDestinationInventory,
+          toLocation: destinationLocation,
           quantityReturned,
           returnedUnits: [],
         };
@@ -749,57 +773,56 @@ export class StockService {
               `Product unit "${unit.id}" does not belong to product "${product.name}"`,
             );
           }
-          if (unit.location !== Location.SHOP) {
-            throw new BadRequestException(
-              `Product unit "${unit.id}" is not currently located in SHOP (location: ${unit.location})`,
-            );
-          }
           if (unit.status !== UnitStatus.SOLD) {
             throw new BadRequestException(
-              `Product unit "${unit.id}" is not currently SOLD (status: ${unit.status})`,
+              `Product unit "${unit.id}" is not currently SOLD (status: ${unit.status}). Only SOLD units can be returned.`,
             );
           }
         }
 
+        const targetStatus =
+          destinationLocation === Location.WAREHOUSE
+            ? UnitStatus.AVAILABLE
+            : UnitStatus.IN_SHOP;
+
         const updateUnitsResult = await tx.productUnit.updateMany({
           where: {
             id: { in: dto.unitIds },
-            location: Location.SHOP,
             status: UnitStatus.SOLD,
           },
           data: {
-            location: Location.WAREHOUSE,
-            status: UnitStatus.AVAILABLE,
+            location: destinationLocation,
+            status: targetStatus,
           },
         });
 
         if (updateUnitsResult.count !== dto.unitIds.length) {
           throw new BadRequestException(
-            'One or more selected units are no longer in SOLD status in the shop',
+            'One or more selected units are no longer in SOLD status',
           );
         }
 
-        const warehouseInventory = await tx.inventory.findUnique({
+        const existingInventory = await tx.inventory.findUnique({
           where: {
             productId_location: {
               productId: product.id,
-              location: Location.WAREHOUSE,
+              location: destinationLocation,
             },
           },
         });
 
-        if (warehouseInventory) {
-          updatedWarehouseInventory = await tx.inventory.update({
-            where: { id: warehouseInventory.id },
+        if (existingInventory) {
+          updatedDestinationInventory = await tx.inventory.update({
+            where: { id: existingInventory.id },
             data: {
               quantity: { increment: dto.unitIds.length },
             },
           });
         } else {
-          updatedWarehouseInventory = await tx.inventory.create({
+          updatedDestinationInventory = await tx.inventory.create({
             data: {
               productId: product.id,
-              location: Location.WAREHOUSE,
+              location: destinationLocation,
               quantity: dto.unitIds.length,
             },
           });
@@ -810,7 +833,7 @@ export class StockService {
             productId: product.id,
             movementType: MovementType.RETURN,
             fromLocation: Location.SHOP,
-            toLocation: Location.WAREHOUSE,
+            toLocation: destinationLocation,
             quantity: dto.unitIds.length,
             createdById: userId,
             note: dto.note || null,
@@ -839,12 +862,21 @@ export class StockService {
             purchasePrice: true,
             location: true,
             status: true,
+            createdAt: true,
+            updatedAt: true,
           },
         });
 
         return {
           movement,
-          warehouseInventory: updatedWarehouseInventory,
+          product: {
+            id: product.id,
+            name: product.name,
+            brand: product.brand,
+            trackingType: product.trackingType,
+          },
+          inventory: updatedDestinationInventory,
+          toLocation: destinationLocation,
           quantityReturned,
           returnedUnits,
         };
