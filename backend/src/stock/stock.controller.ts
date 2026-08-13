@@ -13,6 +13,7 @@ import { TransferStockDto } from './dto/transfer-stock.dto';
 import { SellStockDto } from './dto/sell-stock.dto';
 import { ReturnStockDto } from './dto/return-stock.dto';
 import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
+import { AdjustStockDto } from './dto/adjust-stock.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -110,5 +111,25 @@ export class StockController {
     @GetUser('id') userId: string,
   ) {
     return this.stockService.returnStock(dto, userId);
+  }
+
+  @Post('adjust')
+  @ApiOperation({
+    summary: 'Adjust stock for DAMAGE or LOSS (QUANTITY or SERIALIZED products)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Stock successfully adjusted for DAMAGE or LOSS',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error, invalid movement type, or insufficient stock / invalid unit status',
+  })
+  @ApiResponse({ status: 404, description: 'Product or ProductUnit not found' })
+  async adjustStock(
+    @Body() dto: AdjustStockDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.stockService.adjustStock(dto, userId);
   }
 }

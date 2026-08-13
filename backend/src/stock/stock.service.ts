@@ -11,6 +11,7 @@ import { TransferStockDto } from './dto/transfer-stock.dto';
 import { SellStockDto } from './dto/sell-stock.dto';
 import { ReturnStockDto } from './dto/return-stock.dto';
 import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
+import { AdjustStockDto } from './dto/adjust-stock.dto';
 
 @Injectable()
 export class StockService {
@@ -846,6 +847,266 @@ export class StockService {
           warehouseInventory: updatedWarehouseInventory,
           quantityReturned,
           returnedUnits,
+        };
+      }
+    });
+  }
+
+  async adjustStock(dto: AdjustStockDto, userId: string) {
+    if (
+      dto.movementType !== MovementType.DAMAGE &&
+      dto.movementType !== MovementType.LOSS
+    ) {
+      throw new BadRequestException(
+        'movementType must be either DAMAGE or LOSS',
+      );
+    }
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException(
+        `Product with ID "${dto.productId}" not found`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (product.trackingType === TrackingType.QUANTITY) {
+        if (!dto.quantity || dto.quantity <= 0) {
+          throw new BadRequestException(
+            'quantity is required and must be greater than 0 for QUANTITY products',
+          );
+        }
+        if (!dto.location) {
+          throw new BadRequestException(
+            'location is required for QUANTITY product adjustments',
+          );
+        }
+
+        const inventory = await tx.inventory.findUnique({
+          where: {
+            productId_location: {
+              productId: product.id,
+              location: dto.location,
+            },
+          },
+        });
+
+        if (!inventory || inventory.quantity < dto.quantity) {
+          throw new BadRequestException(
+            `Insufficient ${dto.location} stock for product "${product.name}". Requested: ${dto.quantity}, Available: ${inventory?.quantity || 0}`,
+          );
+        }
+
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: {
+            quantity: { decrement: dto.quantity },
+          },
+        });
+
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            movementType: dto.movementType,
+            quantity: dto.quantity,
+            fromLocation: dto.location,
+            toLocation: null,
+            createdById: userId,
+            note: dto.note || null,
+          },
+        });
+
+        return {
+          movement,
+          quantityAdjusted: dto.quantity,
+          affectedUnits: [],
+        };
+      } else if (product.trackingType === TrackingType.SERIALIZED) {
+        if (!dto.unitIds || dto.unitIds.length === 0) {
+          throw new BadRequestException(
+            'unitIds array is required and cannot be empty for SERIALIZED products',
+          );
+        }
+
+        if (new Set(dto.unitIds).size !== dto.unitIds.length) {
+          throw new BadRequestException('Duplicate unit IDs found in request');
+        }
+
+        const units = await tx.productUnit.findMany({
+          where: {
+            id: { in: dto.unitIds },
+          },
+        });
+
+        if (units.length !== dto.unitIds.length) {
+          throw new NotFoundException(
+            'One or more requested product units were not found',
+          );
+        }
+
+        for (const unit of units) {
+          if (unit.productId !== product.id) {
+            throw new BadRequestException(
+              `Product unit "${unit.id}" does not belong to product "${product.name}"`,
+            );
+          }
+
+          const isWarehouseAvailable =
+            unit.location === Location.WAREHOUSE &&
+            unit.status === UnitStatus.AVAILABLE;
+          const isShopInShop =
+            unit.location === Location.SHOP &&
+            unit.status === UnitStatus.IN_SHOP;
+
+          if (!isWarehouseAvailable && !isShopInShop) {
+            throw new BadRequestException(
+              `Product unit "${unit.id}" is not currently active sellable inventory (location: ${unit.location}, status: ${unit.status})`,
+            );
+          }
+        }
+
+        const targetStatus = UnitStatus.DAMAGED;
+
+        const warehouseUnits = units.filter(
+          (u) => u.location === Location.WAREHOUSE,
+        );
+        const shopUnits = units.filter((u) => u.location === Location.SHOP);
+
+        if (warehouseUnits.length > 0) {
+          const whInventory = await tx.inventory.findUnique({
+            where: {
+              productId_location: {
+                productId: product.id,
+                location: Location.WAREHOUSE,
+              },
+            },
+          });
+
+          if (!whInventory || whInventory.quantity < warehouseUnits.length) {
+            throw new BadRequestException(
+              `Insufficient WAREHOUSE stock quantity for product "${product.name}".`,
+            );
+          }
+
+          await tx.inventory.update({
+            where: { id: whInventory.id },
+            data: {
+              quantity: { decrement: warehouseUnits.length },
+            },
+          });
+        }
+
+        if (shopUnits.length > 0) {
+          const shopInventory = await tx.inventory.findUnique({
+            where: {
+              productId_location: {
+                productId: product.id,
+                location: Location.SHOP,
+              },
+            },
+          });
+
+          if (!shopInventory || shopInventory.quantity < shopUnits.length) {
+            throw new BadRequestException(
+              `Insufficient SHOP stock quantity for product "${product.name}".`,
+            );
+          }
+
+          await tx.inventory.update({
+            where: { id: shopInventory.id },
+            data: {
+              quantity: { decrement: shopUnits.length },
+            },
+          });
+        }
+
+        await tx.productUnit.updateMany({
+          where: {
+            id: { in: dto.unitIds },
+          },
+          data: {
+            status: targetStatus,
+          },
+        });
+
+        const createdMovements: any[] = [];
+
+        if (warehouseUnits.length > 0) {
+          const whMovement = await tx.stockMovement.create({
+            data: {
+              productId: product.id,
+              movementType: dto.movementType,
+              quantity: warehouseUnits.length,
+              fromLocation: Location.WAREHOUSE,
+              toLocation: null,
+              createdById: userId,
+              note: dto.note || null,
+            },
+          });
+
+          for (const u of warehouseUnits) {
+            await tx.stockMovementUnit.create({
+              data: {
+                stockMovementId: whMovement.id,
+                productUnitId: u.id,
+              },
+            });
+          }
+
+          createdMovements.push(whMovement);
+        }
+
+        if (shopUnits.length > 0) {
+          const shopMovement = await tx.stockMovement.create({
+            data: {
+              productId: product.id,
+              movementType: dto.movementType,
+              quantity: shopUnits.length,
+              fromLocation: Location.SHOP,
+              toLocation: null,
+              createdById: userId,
+              note: dto.note || null,
+            },
+          });
+
+          for (const u of shopUnits) {
+            await tx.stockMovementUnit.create({
+              data: {
+                stockMovementId: shopMovement.id,
+                productUnitId: u.id,
+              },
+            });
+          }
+
+          createdMovements.push(shopMovement);
+        }
+
+        const affectedUnits = await tx.productUnit.findMany({
+          where: {
+            id: { in: dto.unitIds },
+          },
+          select: {
+            id: true,
+            imei: true,
+            serialNumber: true,
+            storage: true,
+            color: true,
+            purchasePrice: true,
+            location: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        return {
+          movement: createdMovements[0],
+          movements: createdMovements,
+          quantityAdjusted: dto.unitIds.length,
+          affectedUnits,
         };
       }
     });
