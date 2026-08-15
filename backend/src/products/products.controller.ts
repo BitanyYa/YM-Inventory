@@ -59,6 +59,18 @@ export class ProductsController {
     return this.productsService.findAllUnits(query);
   }
 
+  @Get('units/:unitId/history')
+  @ApiOperation({ summary: 'Get complete stock movement lifecycle history of a ProductUnit by ID' })
+  @ApiParam({ name: 'unitId', description: 'ProductUnit UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Chronological stock movement history of the product unit',
+  })
+  @ApiResponse({ status: 404, description: 'ProductUnit not found' })
+  async findUnitHistory(@Param('unitId') unitId: string) {
+    return this.productsService.findUnitHistory(unitId);
+  }
+
   @Get('units/:unitId')
   @ApiOperation({ summary: 'Get ProductUnit details by unit ID' })
   @ApiParam({ name: 'unitId', description: 'ProductUnit UUID' })

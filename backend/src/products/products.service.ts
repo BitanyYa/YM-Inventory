@@ -166,6 +166,111 @@ export class ProductsService {
     return unit;
   }
 
+  async findUnitHistory(unitId: string) {
+    const unit = await this.prisma.productUnit.findUnique({
+      where: { id: unitId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            brand: true,
+            productType: true,
+            trackingType: true,
+            sellingPrice: true,
+            minimumStock: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!unit) {
+      throw new NotFoundException(`Product unit with ID "${unitId}" not found`);
+    }
+
+    const movementUnits = await this.prisma.stockMovementUnit.findMany({
+      where: { productUnitId: unitId },
+      include: {
+        stockMovement: {
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        stockMovement: {
+          createdAt: 'asc',
+        },
+      },
+    });
+
+    const history = movementUnits.map((mu) => {
+      const sm = mu.stockMovement;
+      return {
+        movementId: sm.id,
+        movementType: sm.movementType,
+        quantity: sm.quantity,
+        fromLocation: sm.fromLocation,
+        toLocation: sm.toLocation,
+        costPrice: sm.costPrice ? Number(sm.costPrice) : null,
+        note: sm.note,
+        createdAt: sm.createdAt.toISOString(),
+        createdBy: {
+          id: sm.createdBy.id,
+          name: sm.createdBy.name,
+          email: sm.createdBy.email,
+          role: sm.createdBy.role,
+        },
+      };
+    });
+
+    const totalMovements = history.length;
+    const firstMovementAt = totalMovements > 0 ? history[0].createdAt : null;
+    const lastMovementAt =
+      totalMovements > 0 ? history[totalMovements - 1].createdAt : null;
+
+    return {
+      unit: {
+        id: unit.id,
+        imei: unit.imei,
+        serialNumber: unit.serialNumber,
+        storage: unit.storage,
+        color: unit.color,
+        purchasePrice: unit.purchasePrice ? Number(unit.purchasePrice) : null,
+        location: unit.location,
+        status: unit.status,
+        createdAt: unit.createdAt.toISOString(),
+        updatedAt: unit.updatedAt.toISOString(),
+        product: {
+          id: unit.product.id,
+          name: unit.product.name,
+          brand: unit.product.brand,
+          productType: unit.product.productType,
+          trackingType: unit.product.trackingType,
+          sellingPrice: unit.product.sellingPrice
+            ? Number(unit.product.sellingPrice)
+            : 0,
+          minimumStock: unit.product.minimumStock,
+          isActive: unit.product.isActive,
+        },
+      },
+      summary: {
+        totalMovements,
+        firstMovementAt,
+        lastMovementAt,
+      },
+      history,
+    };
+  }
+
   async findUnits(productId: string) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
