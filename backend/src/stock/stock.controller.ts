@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -25,14 +26,33 @@ export class StockController {
   @Get('movements')
   @ApiOperation({
     summary:
-      'Get stock movement history with optional filters (productId, movementType, fromLocation, toLocation, startDate, endDate)',
+      'Get paginated stock movement history with optional filters (page, limit, productId, movementType, fromLocation, toLocation, startDate, endDate)',
   })
   @ApiResponse({
     status: 200,
-    description: 'List of stock movements ordered newest first with full relations',
+    description: 'Paginated list of stock movements ordered newest first with metadata',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. page < 1, limit < 1, or limit > 100)',
   })
   async getMovements(@Query() query: QueryStockMovementDto) {
     return this.stockService.findMovements(query);
+  }
+
+  @Get('movements/:id')
+  @ApiOperation({
+    summary: 'Get detailed stock movement information by ID',
+  })
+  @ApiParam({ name: 'id', description: 'Stock Movement UUID' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Stock movement details with product, creator, batch, and associated units',
+  })
+  @ApiResponse({ status: 404, description: 'Stock movement not found' })
+  async findMovementById(@Param('id') id: string) {
+    return this.stockService.findMovementById(id);
   }
 
   @Post('receive')

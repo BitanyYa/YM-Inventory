@@ -1145,6 +1145,13 @@ export class StockService {
   }
 
   async findMovements(query: QueryStockMovementDto) {
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
     const where: Prisma.StockMovementWhereInput = {};
 
     if (query.productId) {
@@ -1162,20 +1169,98 @@ export class StockService {
     if (query.startDate || query.endDate) {
       where.createdAt = {};
       if (query.startDate) {
-        where.createdAt.gte = new Date(query.startDate);
+        let parsedStart: Date;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(query.startDate.trim())) {
+          parsedStart = new Date(`${query.startDate.trim()}T00:00:00.000Z`);
+        } else {
+          parsedStart = new Date(query.startDate);
+        }
+        where.createdAt.gte = parsedStart;
       }
       if (query.endDate) {
-        where.createdAt.lte = new Date(query.endDate);
+        let parsedEnd: Date;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(query.endDate.trim())) {
+          parsedEnd = new Date(`${query.endDate.trim()}T23:59:59.999Z`);
+        } else {
+          parsedEnd = new Date(query.endDate);
+        }
+        where.createdAt.lte = parsedEnd;
       }
     }
 
-    return this.prisma.stockMovement.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc',
+    const [rawMovements, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          product: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          stockBatch: true,
+          movementUnits: {
+            include: {
+              productUnit: {
+                select: {
+                  id: true,
+                  imei: true,
+                  serialNumber: true,
+                  storage: true,
+                  color: true,
+                  location: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    const data = rawMovements.map((m) => ({
+      ...m,
+      costPrice: m.costPrice ? Number(m.costPrice) : null,
+    }));
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
       },
+    };
+  }
+
+  async findMovementById(id: string) {
+    const movement = await this.prisma.stockMovement.findUnique({
+      where: { id },
       include: {
-        product: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            brand: true,
+            productType: true,
+            trackingType: true,
+            sellingPrice: true,
+            minimumStock: true,
+            isActive: true,
+          },
+        },
         createdBy: {
           select: {
             id: true,
@@ -1194,6 +1279,7 @@ export class StockService {
                 serialNumber: true,
                 storage: true,
                 color: true,
+                purchasePrice: true,
                 location: true,
                 status: true,
               },
@@ -1202,5 +1288,62 @@ export class StockService {
         },
       },
     });
+
+    if (!movement) {
+      throw new NotFoundException(`Stock movement with ID "${id}" not found`);
+    }
+
+    const units = movement.movementUnits.map((mu) => ({
+      id: mu.productUnit.id,
+      imei: mu.productUnit.imei,
+      serialNumber: mu.productUnit.serialNumber,
+      storage: mu.productUnit.storage,
+      color: mu.productUnit.color,
+      purchasePrice: mu.productUnit.purchasePrice
+        ? Number(mu.productUnit.purchasePrice)
+        : null,
+      location: mu.productUnit.location,
+      status: mu.productUnit.status,
+    }));
+
+    return {
+      id: movement.id,
+      movementType: movement.movementType,
+      quantity: movement.quantity,
+      fromLocation: movement.fromLocation,
+      toLocation: movement.toLocation,
+      costPrice: movement.costPrice ? Number(movement.costPrice) : null,
+      note: movement.note,
+      createdById: movement.createdById,
+      createdAt: movement.createdAt.toISOString(),
+      product: {
+        id: movement.product.id,
+        name: movement.product.name,
+        brand: movement.product.brand,
+        productType: movement.product.productType,
+        trackingType: movement.product.trackingType,
+        sellingPrice: movement.product.sellingPrice
+          ? Number(movement.product.sellingPrice)
+          : 0,
+        minimumStock: movement.product.minimumStock,
+        isActive: movement.product.isActive,
+      },
+      createdBy: {
+        id: movement.createdBy.id,
+        name: movement.createdBy.name,
+        email: movement.createdBy.email,
+        role: movement.createdBy.role,
+      },
+      stockBatch: movement.stockBatch
+        ? {
+            id: movement.stockBatch.id,
+            reference: movement.stockBatch.reference,
+            note: movement.stockBatch.note,
+            createdById: movement.stockBatch.createdById,
+            createdAt: movement.stockBatch.createdAt.toISOString(),
+          }
+        : null,
+      units,
+    };
   }
 }
