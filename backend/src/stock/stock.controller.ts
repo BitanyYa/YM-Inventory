@@ -15,6 +15,7 @@ import { SellStockDto } from './dto/sell-stock.dto';
 import { ReturnStockDto } from './dto/return-stock.dto';
 import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -38,6 +39,23 @@ export class StockController {
   })
   async getMovements(@Query() query: QueryStockMovementDto) {
     return this.stockService.findMovements(query);
+  }
+
+  @Get('transfers')
+  @ApiOperation({
+    summary:
+      'Get paginated stock transfer history with optional filters (page, limit, productId, fromLocation, toLocation, startDate, endDate)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of stock transfers ordered newest first with metadata',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. page < 1, limit < 1, or limit > 100 or startDate > endDate)',
+  })
+  async getTransfers(@Query() query: QueryStockTransferDto) {
+    return this.stockService.findTransfers(query);
   }
 
   @Get('movements/:id')

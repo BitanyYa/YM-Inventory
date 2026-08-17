@@ -14,7 +14,7 @@ import {
 export class ReturnStockDto {
   @ApiProperty({
     example: 'uuid-product-id',
-    description: 'Product ID being returned from Shop to Warehouse or Shop',
+    description: 'Product ID being returned',
   })
   @IsString()
   @IsNotEmpty()
@@ -43,7 +43,16 @@ export class ReturnStockDto {
   @ApiPropertyOptional({
     enum: Location,
     example: Location.WAREHOUSE,
-    description: 'Destination location where returned stock will be restored (WAREHOUSE or SHOP). Defaults to WAREHOUSE if omitted.',
+    description: 'Destination location where returned stock will be restored (WAREHOUSE or SHOP)',
+  })
+  @IsEnum(Location)
+  @IsOptional()
+  location?: Location;
+
+  @ApiPropertyOptional({
+    enum: Location,
+    example: Location.WAREHOUSE,
+    description: 'Alias for location (WAREHOUSE or SHOP)',
   })
   @IsEnum(Location)
   @IsOptional()

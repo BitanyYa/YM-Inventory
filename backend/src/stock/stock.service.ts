@@ -12,6 +12,7 @@ import { SellStockDto } from './dto/sell-stock.dto';
 import { ReturnStockDto } from './dto/return-stock.dto';
 import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
 
 @Injectable()
 export class StockService {
@@ -666,14 +667,20 @@ export class StockService {
       );
     }
 
-    const destinationLocation = dto.toLocation || Location.WAREHOUSE;
+    const destinationLocation = dto.location || dto.toLocation;
+
+    if (!destinationLocation) {
+      throw new BadRequestException(
+        'location is required for stock return (WAREHOUSE or SHOP)',
+      );
+    }
 
     if (
       destinationLocation !== Location.WAREHOUSE &&
       destinationLocation !== Location.SHOP
     ) {
       throw new BadRequestException(
-        'toLocation must be either WAREHOUSE or SHOP',
+        'location must be either WAREHOUSE or SHOP',
       );
     }
 
@@ -721,7 +728,7 @@ export class StockService {
           data: {
             productId: product.id,
             movementType: MovementType.RETURN,
-            fromLocation: Location.SHOP,
+            fromLocation: null,
             toLocation: destinationLocation,
             quantity: dto.quantity,
             createdById: userId,
@@ -730,6 +737,12 @@ export class StockService {
         });
 
         return {
+          message: 'Stock returned successfully',
+          movementId: movement.id,
+          productId: product.id,
+          trackingType: product.trackingType,
+          quantityReturned,
+          location: destinationLocation,
           movement,
           product: {
             id: product.id,
@@ -739,7 +752,6 @@ export class StockService {
           },
           inventory: updatedDestinationInventory,
           toLocation: destinationLocation,
-          quantityReturned,
           returnedUnits: [],
         };
       } else if (product.trackingType === TrackingType.SERIALIZED) {
@@ -762,7 +774,7 @@ export class StockService {
         });
 
         if (units.length !== dto.unitIds.length) {
-          throw new NotFoundException(
+          throw new BadRequestException(
             'One or more requested product units were not found',
           );
         }
@@ -832,7 +844,7 @@ export class StockService {
           data: {
             productId: product.id,
             movementType: MovementType.RETURN,
-            fromLocation: Location.SHOP,
+            fromLocation: null,
             toLocation: destinationLocation,
             quantity: dto.unitIds.length,
             createdById: userId,
@@ -868,6 +880,12 @@ export class StockService {
         });
 
         return {
+          message: 'Stock returned successfully',
+          movementId: movement.id,
+          productId: product.id,
+          trackingType: product.trackingType,
+          quantityReturned,
+          location: destinationLocation,
           movement,
           product: {
             id: product.id,
@@ -877,7 +895,6 @@ export class StockService {
           },
           inventory: updatedDestinationInventory,
           toLocation: destinationLocation,
-          quantityReturned,
           returnedUnits,
         };
       }
@@ -1344,6 +1361,157 @@ export class StockService {
           }
         : null,
       units,
+    };
+  }
+
+  async findTransfers(query: QueryStockTransferDto) {
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
+    let parsedStart: Date | null = null;
+    if (query.startDate) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(query.startDate.trim())) {
+        parsedStart = new Date(`${query.startDate.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(query.startDate);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (query.endDate) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(query.endDate.trim())) {
+        parsedEnd = new Date(`${query.endDate.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(query.endDate);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const where: Prisma.StockMovementWhereInput = {
+      movementType: MovementType.TRANSFER,
+    };
+
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+    if (query.fromLocation) {
+      where.fromLocation = query.fromLocation;
+    }
+    if (query.toLocation) {
+      where.toLocation = query.toLocation;
+    }
+    if (parsedStart || parsedEnd) {
+      where.createdAt = {};
+      if (parsedStart) {
+        where.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        where.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const [rawTransfers, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              productType: true,
+              trackingType: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          movementUnits: {
+            include: {
+              productUnit: {
+                select: {
+                  id: true,
+                  imei: true,
+                  serialNumber: true,
+                  storage: true,
+                  color: true,
+                  location: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    const data = rawTransfers.map((t) => {
+      const units = t.movementUnits.map((mu) => ({
+        id: mu.productUnit.id,
+        imei: mu.productUnit.imei,
+        serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
+        location: mu.productUnit.location,
+        status: mu.productUnit.status,
+      }));
+
+      return {
+        id: t.id,
+        productId: t.productId,
+        movementType: t.movementType,
+        fromLocation: t.fromLocation,
+        toLocation: t.toLocation,
+        quantity: t.quantity,
+        costPrice: t.costPrice ? Number(t.costPrice) : null,
+        note: t.note,
+        createdById: t.createdById,
+        createdAt: t.createdAt.toISOString(),
+        product: {
+          id: t.product.id,
+          name: t.product.name,
+          brand: t.product.brand,
+          productType: t.product.productType,
+          trackingType: t.product.trackingType,
+        },
+        createdBy: {
+          id: t.createdBy.id,
+          name: t.createdBy.name,
+          email: t.createdBy.email,
+          role: t.createdBy.role,
+        },
+        units,
+      };
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
     };
   }
 }
