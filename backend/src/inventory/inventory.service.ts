@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Location, Prisma, ProductType, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -327,5 +327,135 @@ export class InventoryService {
       stockStatus: item.stockStatus,
       units: item.trackingType === TrackingType.SERIALIZED ? item.rawUnits : [],
     }));
+  }
+
+  async getProductInventoryDetail(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        inventory: true,
+        productUnits: {
+          where: {
+            OR: [
+              {
+                location: Location.WAREHOUSE,
+                status: UnitStatus.AVAILABLE,
+              },
+              {
+                location: Location.SHOP,
+                status: UnitStatus.IN_SHOP,
+              },
+            ],
+          },
+          select: {
+            id: true,
+            imei: true,
+            serialNumber: true,
+            storage: true,
+            color: true,
+            purchasePrice: true,
+            location: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID "${productId}" not found`);
+    }
+
+    const warehouseRecord = product.inventory.find(
+      (i) => i.location === Location.WAREHOUSE,
+    );
+    const shopRecord = product.inventory.find(
+      (i) => i.location === Location.SHOP,
+    );
+
+    const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+    const shopQuantity = shopRecord ? shopRecord.quantity : 0;
+    const totalQuantity = warehouseQuantity + shopQuantity;
+
+    let stockStatus: InventoryStockStatus;
+    if (totalQuantity === 0) {
+      stockStatus = InventoryStockStatus.OUT_OF_STOCK;
+    } else if (totalQuantity <= product.minimumStock) {
+      stockStatus = InventoryStockStatus.LOW_STOCK;
+    } else {
+      stockStatus = InventoryStockStatus.IN_STOCK;
+    }
+
+    let units: any[] = [];
+    let warehouseAvailable = 0;
+    let shopAvailable = 0;
+    let totalAvailable = 0;
+
+    if (product.trackingType === TrackingType.SERIALIZED) {
+      units = (product.productUnits || []).map((u) => {
+        if (u.location === Location.WAREHOUSE && u.status === UnitStatus.AVAILABLE) {
+          warehouseAvailable++;
+        } else if (u.location === Location.SHOP && u.status === UnitStatus.IN_SHOP) {
+          shopAvailable++;
+        }
+
+        return {
+          id: u.id,
+          imei: u.imei,
+          serialNumber: u.serialNumber,
+          storage: u.storage,
+          color: u.color,
+          purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+          location: u.location,
+          status: u.status,
+          createdAt: u.createdAt.toISOString(),
+          updatedAt: u.updatedAt.toISOString(),
+        };
+      });
+
+      totalAvailable = warehouseAvailable + shopAvailable;
+    }
+
+    return {
+      product: {
+        id: product.id,
+        name: product.name,
+        brand: product.brand,
+        productType: product.productType,
+        trackingType: product.trackingType,
+        sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
+        minimumStock: product.minimumStock,
+        isActive: product.isActive,
+        category: product.category
+          ? {
+              id: product.category.id,
+              name: product.category.name,
+            }
+          : null,
+      },
+      inventory: {
+        warehouseQuantity,
+        shopQuantity,
+        totalQuantity,
+        minimumStock: product.minimumStock,
+        stockStatus,
+      },
+      unitSummary: {
+        warehouseAvailable,
+        shopAvailable,
+        totalAvailable,
+      },
+      units,
+    };
   }
 }

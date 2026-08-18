@@ -1,7 +1,8 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -22,7 +23,7 @@ export class InventoryController {
   @ApiResponse({
     status: 200,
     description:
-      'Current inventory statistics (totalProducts, totalUnits, warehouseUnits, shopUnits, lowStockProducts, outOfStockProducts)',
+      'Current inventory statistics (totalProducts, totalUnits, warehouseUnits, shopUnits, lowStockProducts, outOfStockProducts, breakdowns, lowStockItems)',
   })
   async getSummary() {
     return this.inventoryService.getSummary();
@@ -36,6 +37,21 @@ export class InventoryController {
   })
   async getLowStock(@Query() query: QueryLowStockDto) {
     return this.inventoryService.getLowStock(query);
+  }
+
+  @Get('products/:productId')
+  @ApiOperation({
+    summary:
+      'Get complete current stock state, unit summary, and active serialized units for ONE product by ID',
+  })
+  @ApiParam({ name: 'productId', description: 'Product UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Product inventory state retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async getProductInventoryDetail(@Param('productId') productId: string) {
+    return this.inventoryService.getProductInventoryDetail(productId);
   }
 
   @Get()
