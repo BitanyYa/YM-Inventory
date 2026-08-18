@@ -1567,6 +1567,28 @@ export class StockService {
     const effectiveStart = query.startDate || query.date;
     const effectiveEnd = query.endDate || query.date;
 
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
     const where: Prisma.StockMovementWhereInput = {};
 
     if (query.productId) {
@@ -1581,24 +1603,35 @@ export class StockService {
     if (query.toLocation) {
       where.toLocation = query.toLocation;
     }
-    if (effectiveStart || effectiveEnd) {
+    if (query.createdById) {
+      where.createdById = query.createdById;
+    }
+
+    const productConditions: Prisma.ProductWhereInput = {};
+    if (query.productType) {
+      productConditions.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productConditions.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productConditions.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    if (Object.keys(productConditions).length > 0) {
+      where.product = productConditions;
+    }
+
+    if (parsedStart || parsedEnd) {
       where.createdAt = {};
-      if (effectiveStart) {
-        let parsedStart: Date;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
-          parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
-        } else {
-          parsedStart = new Date(effectiveStart);
-        }
+      if (parsedStart) {
         where.createdAt.gte = parsedStart;
       }
-      if (effectiveEnd) {
-        let parsedEnd: Date;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
-          parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
-        } else {
-          parsedEnd = new Date(effectiveEnd);
-        }
+      if (parsedEnd) {
         where.createdAt.lte = parsedEnd;
       }
     }
@@ -1612,7 +1645,16 @@ export class StockService {
           createdAt: 'desc',
         },
         include: {
-          product: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              productType: true,
+              trackingType: true,
+              sellingPrice: true,
+            },
+          },
           createdBy: {
             select: {
               id: true,
@@ -1621,7 +1663,6 @@ export class StockService {
               role: true,
             },
           },
-          stockBatch: true,
           movementUnits: {
             include: {
               productUnit: {
@@ -1631,6 +1672,7 @@ export class StockService {
                   serialNumber: true,
                   storage: true,
                   color: true,
+                  purchasePrice: true,
                   location: true,
                   status: true,
                 },
@@ -1642,12 +1684,52 @@ export class StockService {
       this.prisma.stockMovement.count({ where }),
     ]);
 
-    const data = rawMovements.map((m) => ({
-      ...m,
-      costPrice: m.costPrice ? Number(m.costPrice) : null,
-    }));
+    const data = rawMovements.map((m) => {
+      const units = m.movementUnits.map((mu) => ({
+        id: mu.productUnit.id,
+        imei: mu.productUnit.imei,
+        serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
+        purchasePrice: mu.productUnit.purchasePrice
+          ? Number(mu.productUnit.purchasePrice)
+          : null,
+        location: mu.productUnit.location,
+        status: mu.productUnit.status,
+      }));
 
-    const totalPages = Math.ceil(total / limit);
+      return {
+        id: m.id,
+        productId: m.productId,
+        movementType: m.movementType,
+        fromLocation: m.fromLocation,
+        toLocation: m.toLocation,
+        quantity: m.quantity,
+        costPrice: m.costPrice ? Number(m.costPrice) : null,
+        note: m.note,
+        createdById: m.createdById,
+        createdAt: m.createdAt.toISOString(),
+        product: {
+          id: m.product.id,
+          name: m.product.name,
+          brand: m.product.brand,
+          productType: m.product.productType,
+          trackingType: m.product.trackingType,
+          sellingPrice: m.product.sellingPrice
+            ? Number(m.product.sellingPrice)
+            : 0,
+        },
+        createdBy: {
+          id: m.createdBy.id,
+          name: m.createdBy.name,
+          email: m.createdBy.email,
+          role: m.createdBy.role,
+        },
+        units: m.product.trackingType === TrackingType.SERIALIZED ? units : [],
+      };
+    });
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
 
     return {
       data,

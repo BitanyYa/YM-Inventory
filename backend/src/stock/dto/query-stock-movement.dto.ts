@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Location, MovementType } from '@prisma/client';
+import { Location, MovementType, ProductType, TrackingType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
@@ -40,11 +40,28 @@ export class QueryStockMovementDto {
 
   @ApiPropertyOptional({
     enum: MovementType,
-    description: 'Filter by Movement Type (STOCK_IN, TRANSFER, SALE, RETURN, DAMAGE, LOSS)',
+    description:
+      'Filter by Movement Type (STOCK_IN, TRANSFER, SALE, RETURN, DAMAGE, LOSS)',
   })
   @IsEnum(MovementType)
   @IsOptional()
   movementType?: MovementType;
+
+  @ApiPropertyOptional({
+    enum: ProductType,
+    description: 'Filter by Product Type (e.g. PHONE, ACCESSORY)',
+  })
+  @IsEnum(ProductType)
+  @IsOptional()
+  productType?: ProductType;
+
+  @ApiPropertyOptional({
+    enum: TrackingType,
+    description: 'Filter by Tracking Type (SERIALIZED, QUANTITY)',
+  })
+  @IsEnum(TrackingType)
+  @IsOptional()
+  trackingType?: TrackingType;
 
   @ApiPropertyOptional({
     enum: Location,
@@ -62,25 +79,41 @@ export class QueryStockMovementDto {
   @IsOptional()
   toLocation?: Location;
 
+  @ApiPropertyOptional({ description: 'Filter by User ID who created the movement' })
+  @IsString()
+  @IsOptional()
+  createdById?: string;
+
   @ApiPropertyOptional({
-    example: '2026-08-17',
-    description: 'Single date filter (ISO string or YYYY-MM-DD). Automatically sets date range for that full single day.',
+    example: 'Samsung',
+    description: 'Search by product name or brand (case-insensitive)',
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-08-18',
+    description:
+      'Single date filter (ISO string or YYYY-MM-DD). Automatically sets date range for that full single day.',
   })
   @IsDateString()
   @IsOptional()
   date?: string;
 
   @ApiPropertyOptional({
-    example: '2026-08-01T00:00:00.000Z',
-    description: 'Filter movements created on or after this date string',
+    example: '2026-08-01',
+    description:
+      'Filter movements created on or after this date string (ISO string or YYYY-MM-DD)',
   })
   @IsDateString()
   @IsOptional()
   startDate?: string;
 
   @ApiPropertyOptional({
-    example: '2026-08-31T23:59:59.999Z',
-    description: 'Filter movements created on or before this date string',
+    example: '2026-08-18',
+    description:
+      'Filter movements created on or before this date string (ISO string or YYYY-MM-DD)',
   })
   @IsDateString()
   @IsOptional()
