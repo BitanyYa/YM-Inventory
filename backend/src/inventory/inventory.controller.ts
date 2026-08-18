@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InventoryService } from './inventory.service';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
 import { QueryLowStockDto } from './dto/query-low-stock.dto';
+import { QueryProductMovementDto } from './dto/query-product-movement.dto';
 
 @ApiTags('inventory')
 @ApiBearerAuth()
@@ -37,6 +38,24 @@ export class InventoryController {
   })
   async getLowStock(@Query() query: QueryLowStockDto) {
     return this.inventoryService.getLowStock(query);
+  }
+
+  @Get('products/:productId/movements')
+  @ApiOperation({
+    summary:
+      'Get paginated stock movement history for ONE specific product by ID (supports movementType, fromLocation, toLocation, date, startDate, endDate)',
+  })
+  @ApiParam({ name: 'productId', description: 'Product UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Product movement history retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async getProductMovementHistory(
+    @Param('productId') productId: string,
+    @Query() query: QueryProductMovementDto,
+  ) {
+    return this.inventoryService.getProductMovementHistory(productId, query);
   }
 
   @Get('products/:productId')

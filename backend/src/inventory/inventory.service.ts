@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Location, Prisma, ProductType, TrackingType, UnitStatus } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Location, MovementType, Prisma, ProductType, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   InventoryStockStatus,
   QueryInventoryDto,
 } from './dto/query-inventory.dto';
 import { QueryLowStockDto } from './dto/query-low-stock.dto';
+import { QueryProductMovementDto } from './dto/query-product-movement.dto';
 
 @Injectable()
 export class InventoryService {
@@ -456,6 +457,188 @@ export class InventoryService {
         totalAvailable,
       },
       units,
+    };
+  }
+
+  async getProductMovementHistory(
+    productId: string,
+    query: QueryProductMovementDto,
+  ) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        name: true,
+        brand: true,
+        productType: true,
+        trackingType: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID "${productId}" not found`);
+    }
+
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const where: Prisma.StockMovementWhereInput = {
+      productId,
+    };
+
+    if (query.movementType) {
+      where.movementType = query.movementType;
+    }
+    if (query.fromLocation) {
+      where.fromLocation = query.fromLocation;
+    }
+    if (query.toLocation) {
+      where.toLocation = query.toLocation;
+    }
+    if (parsedStart || parsedEnd) {
+      where.createdAt = {};
+      if (parsedStart) {
+        where.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        where.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const [rawMovements, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          stockBatch: {
+            select: {
+              id: true,
+              reference: true,
+              note: true,
+              createdAt: true,
+            },
+          },
+          movementUnits: {
+            include: {
+              productUnit: {
+                select: {
+                  id: true,
+                  imei: true,
+                  serialNumber: true,
+                  storage: true,
+                  color: true,
+                  purchasePrice: true,
+                  location: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    const data = rawMovements.map((m) => {
+      const units = m.movementUnits.map((mu) => ({
+        id: mu.productUnit.id,
+        imei: mu.productUnit.imei,
+        serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
+        purchasePrice: mu.productUnit.purchasePrice
+          ? Number(mu.productUnit.purchasePrice)
+          : null,
+        location: mu.productUnit.location,
+        status: mu.productUnit.status,
+      }));
+
+      return {
+        id: m.id,
+        movementType: m.movementType,
+        quantity: m.quantity,
+        fromLocation: m.fromLocation,
+        toLocation: m.toLocation,
+        costPrice: m.costPrice ? Number(m.costPrice) : null,
+        note: m.note,
+        createdById: m.createdById,
+        createdAt: m.createdAt.toISOString(),
+        createdBy: {
+          id: m.createdBy.id,
+          name: m.createdBy.name,
+          email: m.createdBy.email,
+          role: m.createdBy.role,
+        },
+        stockBatch: m.stockBatch
+          ? {
+              id: m.stockBatch.id,
+              reference: m.stockBatch.reference,
+              note: m.stockBatch.note,
+              createdAt: m.stockBatch.createdAt.toISOString(),
+            }
+          : null,
+        units: product.trackingType === TrackingType.SERIALIZED ? units : [],
+      };
+    });
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      product: {
+        id: product.id,
+        name: product.name,
+        brand: product.brand,
+        productType: product.productType,
+        trackingType: product.trackingType,
+      },
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
     };
   }
 }
