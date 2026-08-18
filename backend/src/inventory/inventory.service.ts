@@ -7,6 +7,7 @@ import {
 } from './dto/query-inventory.dto';
 import { QueryLowStockDto } from './dto/query-low-stock.dto';
 import { QueryProductMovementDto } from './dto/query-product-movement.dto';
+import { InventoryAlertStatus, QueryStockAlertDto } from './dto/query-stock-alert.dto';
 
 @Injectable()
 export class InventoryService {
@@ -632,6 +633,146 @@ export class InventoryService {
         productType: product.productType,
         trackingType: product.trackingType,
       },
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  async getStockAlerts(query: QueryStockAlertDto) {
+    const productWhere: Prisma.ProductWhereInput = {
+      isActive: true, // Only active products
+    };
+
+    if (query.categoryId) {
+      productWhere.categoryId = query.categoryId;
+    }
+    if (query.productType) {
+      productWhere.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productWhere.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productWhere.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: productWhere,
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        inventory: true,
+      },
+    });
+
+    const alerts: any[] = [];
+
+    for (const product of products) {
+      const warehouseRecord = product.inventory.find(
+        (i) => i.location === Location.WAREHOUSE,
+      );
+      const shopRecord = product.inventory.find(
+        (i) => i.location === Location.SHOP,
+      );
+
+      const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+      const shopQuantity = shopRecord ? shopRecord.quantity : 0;
+      const totalQuantity = warehouseQuantity + shopQuantity;
+      const minimumStock = product.minimumStock;
+
+      let stockStatus: InventoryAlertStatus;
+      let shortage = 0;
+
+      if (totalQuantity === 0) {
+        stockStatus = InventoryAlertStatus.OUT_OF_STOCK;
+        shortage = minimumStock;
+      } else if (totalQuantity <= minimumStock) {
+        stockStatus = InventoryAlertStatus.LOW_STOCK;
+        shortage = minimumStock - totalQuantity;
+      } else {
+        // IN_STOCK items are not included in alerts
+        continue;
+      }
+
+      // Filter by status if specified
+      if (query.status) {
+        if (stockStatus !== query.status) {
+          continue;
+        }
+      }
+
+      // Filter by location if specified
+      if (query.location) {
+        if (query.location === Location.WAREHOUSE && warehouseQuantity <= 0) {
+          continue;
+        }
+        if (query.location === Location.SHOP && shopQuantity <= 0) {
+          continue;
+        }
+      }
+
+      alerts.push({
+        product: {
+          id: product.id,
+          name: product.name,
+          brand: product.brand,
+          productType: product.productType,
+          trackingType: product.trackingType,
+          minimumStock: product.minimumStock,
+          sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
+          category: product.category
+            ? {
+                id: product.category.id,
+                name: product.category.name,
+              }
+            : null,
+        },
+        warehouseQuantity,
+        shopQuantity,
+        totalQuantity,
+        minimumStock,
+        stockStatus,
+        shortage,
+      });
+    }
+
+    // Urgency ordering: OUT_OF_STOCK first (largest shortage first, then name ASC), then LOW_STOCK (largest shortage first, then name ASC)
+    alerts.sort((a, b) => {
+      if (a.stockStatus !== b.stockStatus) {
+        return a.stockStatus === InventoryAlertStatus.OUT_OF_STOCK ? -1 : 1;
+      }
+      if (a.shortage !== b.shortage) {
+        return b.shortage - a.shortage;
+      }
+      return a.product.name.localeCompare(b.product.name);
+    });
+
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+
+    const total = alerts.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    const startIndex = (page - 1) * limit;
+    const data = alerts.slice(startIndex, startIndex + limit);
+
+    return {
       data,
       meta: {
         page,

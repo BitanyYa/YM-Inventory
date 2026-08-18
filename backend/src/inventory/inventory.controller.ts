@@ -11,6 +11,7 @@ import { InventoryService } from './inventory.service';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
 import { QueryLowStockDto } from './dto/query-low-stock.dto';
 import { QueryProductMovementDto } from './dto/query-product-movement.dto';
+import { QueryStockAlertDto } from './dto/query-stock-alert.dto';
 
 @ApiTags('inventory')
 @ApiBearerAuth()
@@ -38,6 +39,23 @@ export class InventoryController {
   })
   async getLowStock(@Query() query: QueryLowStockDto) {
     return this.inventoryService.getLowStock(query);
+  }
+
+  @Get('alerts/stock')
+  @ApiOperation({
+    summary:
+      'Get low stock & out-of-stock reorder report (supports status filter, search, productType, trackingType, location, categoryId, page, limit)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated stock alerts retrieved successfully sorted by urgency',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. invalid status enum)',
+  })
+  async getStockAlerts(@Query() query: QueryStockAlertDto) {
+    return this.inventoryService.getStockAlerts(query);
   }
 
   @Get('products/:productId/movements')
