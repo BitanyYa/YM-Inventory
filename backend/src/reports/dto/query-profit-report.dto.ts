@@ -4,6 +4,14 @@ import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class QueryProfitReportDto {
   @ApiPropertyOptional({
+    example: '2026-08-17',
+    description: 'Single date filter (ISO string or YYYY-MM-DD)',
+  })
+  @IsDateString()
+  @IsOptional()
+  date?: string;
+
+  @ApiPropertyOptional({
     example: '2026-08-01',
     description: 'Start date for profit report (ISO string or YYYY-MM-DD)',
   })

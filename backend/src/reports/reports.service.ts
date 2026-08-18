@@ -10,19 +10,26 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getStockMovementsReport(query: QueryStockReportDto) {
+    const rawStart = query.startDate || query.date;
+    const rawEnd = query.endDate || query.date;
+
     let parsedStart: Date | null = null;
-    if (query.startDate) {
-      parsedStart = new Date(query.startDate);
+    if (rawStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawStart.trim())) {
+        parsedStart = new Date(`${rawStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(rawStart);
+      }
     }
 
     let parsedEnd: Date | null = null;
-    if (query.endDate) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(query.endDate.trim())) {
-        parsedEnd = new Date(`${query.endDate.trim()}T23:59:59.999Z`);
+    if (rawEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawEnd.trim())) {
+        parsedEnd = new Date(`${rawEnd.trim()}T23:59:59.999Z`);
       } else {
-        parsedEnd = new Date(query.endDate);
+        parsedEnd = new Date(rawEnd);
         if (
-          !query.endDate.includes('T') &&
+          !rawEnd.includes('T') &&
           parsedEnd.getHours() === 0 &&
           parsedEnd.getMinutes() === 0 &&
           parsedEnd.getSeconds() === 0
@@ -104,36 +111,35 @@ export class ReportsService {
       totalMovements += 1;
       totalQuantity += qty;
 
-      let pData = productMap.get(movement.productId);
-      if (!pData) {
-        pData = {
+      if (!productMap.has(movement.productId)) {
+        productMap.set(movement.productId, {
           productId: movement.productId,
-          productName: movement.product?.name || 'Unknown Product',
+          productName: movement.product.name,
           movementTotals: initMovementMap(),
           totalMovements: 0,
           totalQuantity: 0,
-        };
-        productMap.set(movement.productId, pData);
+        });
       }
 
+      const pData = productMap.get(movement.productId)!;
       pData.movementTotals[type] = (pData.movementTotals[type] || 0) + qty;
       pData.totalMovements += 1;
       pData.totalQuantity += qty;
     }
+
+    const byProduct = Array.from(productMap.values());
 
     return {
       period: {
         startDate: parsedStart ? parsedStart.toISOString() : null,
         endDate: parsedEnd ? parsedEnd.toISOString() : null,
       },
-      summary: {
-        movementTotals: overallTotals,
+      overallTotals: {
+        byType: overallTotals,
         totalMovements,
         totalQuantity,
       },
-      byProduct: Array.from(productMap.values()).sort((a, b) =>
-        a.productName.localeCompare(b.productName),
-      ),
+      byProduct,
     };
   }
 
@@ -149,30 +155,11 @@ export class ReportsService {
             status: {
               in: [UnitStatus.AVAILABLE, UnitStatus.IN_SHOP],
             },
-          },
-          select: {
-            id: true,
-            purchasePrice: true,
-            location: true,
-            status: true,
+            location: {
+              in: [Location.WAREHOUSE, Location.SHOP],
+            },
           },
         },
-        stockMovements: {
-          where: {
-            movementType: MovementType.STOCK_IN,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          select: {
-            quantity: true,
-            costPrice: true,
-            createdAt: true,
-          },
-        },
-      },
-      orderBy: {
-        name: 'asc',
       },
     });
 
@@ -180,72 +167,80 @@ export class ReportsService {
     let warehouseValue = 0;
     let shopValue = 0;
 
-    const byProduct: any[] = [];
+    const byProduct: Array<{
+      productId: string;
+      productName: string;
+      trackingType: TrackingType;
+      warehouseQuantity: number;
+      shopQuantity: number;
+      totalQuantity: number;
+      unitCost: number;
+      inventoryValue: number;
+    }> = [];
 
     for (const product of products) {
-      const warehouseRecord = product.inventory.find(
-        (i) => i.location === Location.WAREHOUSE,
-      );
-      const shopRecord = product.inventory.find(
-        (i) => i.location === Location.SHOP,
-      );
-
-      const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
-      const shopQuantity = shopRecord ? shopRecord.quantity : 0;
-      const totalQuantity = warehouseQuantity + shopQuantity;
-
+      let warehouseQuantity = 0;
+      let shopQuantity = 0;
+      let totalQuantity = 0;
       let inventoryValue = 0;
-      let unitCost: number | null = null;
+      let unitCost = 0;
       let productWarehouseVal = 0;
       let productShopVal = 0;
 
       if (product.trackingType === TrackingType.SERIALIZED) {
-        const warehouseUnits = product.productUnits.filter(
-          (u) => u.location === Location.WAREHOUSE && u.status === UnitStatus.AVAILABLE,
-        );
-        const shopUnits = product.productUnits.filter(
-          (u) => u.location === Location.SHOP && u.status === UnitStatus.IN_SHOP,
-        );
+        for (const unit of product.productUnits) {
+          const cost = unit.purchasePrice ? Number(unit.purchasePrice) : 0;
+          totalQuantity += 1;
+          inventoryValue += cost;
 
-        productWarehouseVal = warehouseUnits.reduce(
-          (acc, u) => acc + (u.purchasePrice ? Number(u.purchasePrice) : 0),
-          0,
-        );
-        productShopVal = shopUnits.reduce(
-          (acc, u) => acc + (u.purchasePrice ? Number(u.purchasePrice) : 0),
-          0,
-        );
+          if (unit.location === Location.WAREHOUSE) {
+            warehouseQuantity += 1;
+            productWarehouseVal += cost;
+          } else if (unit.location === Location.SHOP) {
+            shopQuantity += 1;
+            productShopVal += cost;
+          }
+        }
 
-        inventoryValue = Number((productWarehouseVal + productShopVal).toFixed(2));
-        unitCost = totalQuantity > 0 ? Number((inventoryValue / totalQuantity).toFixed(2)) : null;
+        unitCost =
+          totalQuantity > 0
+            ? Number((inventoryValue / totalQuantity).toFixed(2))
+            : 0;
       } else if (product.trackingType === TrackingType.QUANTITY) {
+        const whInventory = product.inventory.find(
+          (inv) => inv.location === Location.WAREHOUSE,
+        );
+        const shopInventory = product.inventory.find(
+          (inv) => inv.location === Location.SHOP,
+        );
+
+        warehouseQuantity = whInventory ? whInventory.quantity : 0;
+        shopQuantity = shopInventory ? shopInventory.quantity : 0;
+        totalQuantity = warehouseQuantity + shopQuantity;
+
         if (totalQuantity > 0) {
-          let qtyNeeded = totalQuantity;
-          let calculatedVal = 0;
-          let lastCostPrice = 0;
+          const latestStockIn = await this.prisma.stockMovement.findFirst({
+            where: {
+              productId: product.id,
+              movementType: MovementType.STOCK_IN,
+              costPrice: {
+                not: null,
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          });
 
-          for (const sm of product.stockMovements) {
-            if (qtyNeeded <= 0) break;
-            const cost = sm.costPrice ? Number(sm.costPrice) : 0;
-            if (cost > 0) {
-              lastCostPrice = cost;
-            }
-            const takeQty = Math.min(qtyNeeded, sm.quantity);
-            calculatedVal += takeQty * cost;
-            qtyNeeded -= takeQty;
+          if (latestStockIn && latestStockIn.costPrice) {
+            unitCost = Number(latestStockIn.costPrice);
+          } else {
+            unitCost = 0;
           }
 
-          if (qtyNeeded > 0 && lastCostPrice > 0) {
-            calculatedVal += qtyNeeded * lastCostPrice;
-          }
-
-          inventoryValue = Number(calculatedVal.toFixed(2));
-          unitCost = Number((inventoryValue / totalQuantity).toFixed(2));
-
-          productWarehouseVal = Number(
-            (warehouseQuantity * (inventoryValue / totalQuantity)).toFixed(2),
-          );
-          productShopVal = Number((inventoryValue - productWarehouseVal).toFixed(2));
+          inventoryValue = totalQuantity * unitCost;
+          productWarehouseVal = warehouseQuantity * unitCost;
+          productShopVal = shopQuantity * unitCost;
         } else {
           inventoryValue = 0;
           unitCost = 0;
@@ -281,23 +276,26 @@ export class ReportsService {
   }
 
   async getSalesReport(query: QuerySalesReportDto) {
+    const rawStart = query.startDate || query.date;
+    const rawEnd = query.endDate || query.date;
+
     let parsedStart: Date | null = null;
-    if (query.startDate) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(query.startDate.trim())) {
-        parsedStart = new Date(`${query.startDate.trim()}T00:00:00.000Z`);
+    if (rawStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawStart.trim())) {
+        parsedStart = new Date(`${rawStart.trim()}T00:00:00.000Z`);
       } else {
-        parsedStart = new Date(query.startDate);
+        parsedStart = new Date(rawStart);
       }
     }
 
     let parsedEnd: Date | null = null;
-    if (query.endDate) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(query.endDate.trim())) {
-        parsedEnd = new Date(`${query.endDate.trim()}T23:59:59.999Z`);
+    if (rawEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawEnd.trim())) {
+        parsedEnd = new Date(`${rawEnd.trim()}T23:59:59.999Z`);
       } else {
-        parsedEnd = new Date(query.endDate);
+        parsedEnd = new Date(rawEnd);
         if (
-          !query.endDate.includes('T') &&
+          !rawEnd.includes('T') &&
           parsedEnd.getHours() === 0 &&
           parsedEnd.getMinutes() === 0 &&
           parsedEnd.getSeconds() === 0
@@ -358,9 +356,9 @@ export class ReportsService {
       },
     });
 
-    const totalSales = saleMovements.length;
+    let totalSalesCount = saleMovements.length;
     let totalQuantitySold = 0;
-    let totalSalesValue = 0;
+    let totalRevenue = 0;
 
     const productMap = new Map<
       string,
@@ -370,49 +368,44 @@ export class ReportsService {
         brand: string;
         productType: ProductType;
         trackingType: TrackingType;
+        sellingPrice: number;
+        salesCount: number;
         quantitySold: number;
-        salesValue: number;
+        totalRevenue: number;
       }
     >();
 
     for (const movement of saleMovements) {
-      const product = movement.product;
       const qty = movement.quantity;
-      const price = product?.sellingPrice ? Number(product.sellingPrice) : 0;
-      const movementSalesValue = qty * price;
+      const unitPrice = movement.product.sellingPrice
+        ? Number(movement.product.sellingPrice)
+        : 0;
+      const revenue = qty * unitPrice;
 
       totalQuantitySold += qty;
-      totalSalesValue += movementSalesValue;
+      totalRevenue += revenue;
 
-      let pData = productMap.get(movement.productId);
-      if (!pData) {
-        pData = {
+      if (!productMap.has(movement.productId)) {
+        productMap.set(movement.productId, {
           productId: movement.productId,
-          productName: product?.name || 'Unknown Product',
-          brand: product?.brand || '',
-          productType: product?.productType,
-          trackingType: product?.trackingType,
+          productName: movement.product.name,
+          brand: movement.product.brand,
+          productType: movement.product.productType,
+          trackingType: movement.product.trackingType,
+          sellingPrice: unitPrice,
+          salesCount: 0,
           quantitySold: 0,
-          salesValue: 0,
-        };
-        productMap.set(movement.productId, pData);
+          totalRevenue: 0,
+        });
       }
 
+      const pData = productMap.get(movement.productId)!;
+      pData.salesCount += 1;
       pData.quantitySold += qty;
-      pData.salesValue += movementSalesValue;
+      pData.totalRevenue = Number((pData.totalRevenue + revenue).toFixed(2));
     }
 
-    const byProduct = Array.from(productMap.values()).map((p) => ({
-      ...p,
-      salesValue: Number(p.salesValue.toFixed(2)),
-    }));
-
-    byProduct.sort((a, b) => {
-      if (b.quantitySold !== a.quantitySold) {
-        return b.quantitySold - a.quantitySold;
-      }
-      return a.productName.localeCompare(b.productName);
-    });
+    const byProduct = Array.from(productMap.values());
 
     return {
       period: {
@@ -420,32 +413,35 @@ export class ReportsService {
         endDate: parsedEnd ? parsedEnd.toISOString() : null,
       },
       summary: {
-        totalSales,
+        totalSalesCount,
         totalQuantitySold,
-        totalSalesValue: Number(totalSalesValue.toFixed(2)),
+        totalRevenue: Number(totalRevenue.toFixed(2)),
       },
       byProduct,
     };
   }
 
   async getProfitReport(query: QueryProfitReportDto) {
+    const rawStart = query.startDate || query.date;
+    const rawEnd = query.endDate || query.date;
+
     let parsedStart: Date | null = null;
-    if (query.startDate) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(query.startDate.trim())) {
-        parsedStart = new Date(`${query.startDate.trim()}T00:00:00.000Z`);
+    if (rawStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawStart.trim())) {
+        parsedStart = new Date(`${rawStart.trim()}T00:00:00.000Z`);
       } else {
-        parsedStart = new Date(query.startDate);
+        parsedStart = new Date(rawStart);
       }
     }
 
     let parsedEnd: Date | null = null;
-    if (query.endDate) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(query.endDate.trim())) {
-        parsedEnd = new Date(`${query.endDate.trim()}T23:59:59.999Z`);
+    if (rawEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawEnd.trim())) {
+        parsedEnd = new Date(`${rawEnd.trim()}T23:59:59.999Z`);
       } else {
-        parsedEnd = new Date(query.endDate);
+        parsedEnd = new Date(rawEnd);
         if (
-          !query.endDate.includes('T') &&
+          !rawEnd.includes('T') &&
           parsedEnd.getHours() === 0 &&
           parsedEnd.getMinutes() === 0 &&
           parsedEnd.getSeconds() === 0
@@ -519,48 +515,36 @@ export class ReportsService {
     const quantityProductIds = Array.from(
       new Set(
         saleMovements
-          .filter((m) => m.product?.trackingType === TrackingType.QUANTITY)
+          .filter((m) => m.product.trackingType === TrackingType.QUANTITY)
           .map((m) => m.productId),
       ),
     );
 
-    const stockInMap = new Map<string, number>();
+    const quantityUnitCostMap = new Map<string, number>();
 
-    if (quantityProductIds.length > 0) {
-      const stockInMovements = await this.prisma.stockMovement.findMany({
+    for (const pid of quantityProductIds) {
+      const latestStockIn = await this.prisma.stockMovement.findFirst({
         where: {
-          productId: { in: quantityProductIds },
+          productId: pid,
           movementType: MovementType.STOCK_IN,
-          costPrice: { not: null },
+          costPrice: {
+            not: null,
+          },
         },
-        select: {
-          productId: true,
-          quantity: true,
-          costPrice: true,
+        orderBy: {
+          createdAt: 'desc',
         },
       });
 
-      const stockInAgg = new Map<string, { totalQty: number; totalCost: number }>();
-      for (const sm of stockInMovements) {
-        const cost = sm.costPrice ? Number(sm.costPrice) : 0;
-        const qty = sm.quantity;
-        let entry = stockInAgg.get(sm.productId);
-        if (!entry) {
-          entry = { totalQty: 0, totalCost: 0 };
-          stockInAgg.set(sm.productId, entry);
-        }
-        entry.totalQty += qty;
-        entry.totalCost += qty * cost;
-      }
-
-      for (const [pId, entry] of stockInAgg.entries()) {
-        const avgCost = entry.totalQty > 0 ? entry.totalCost / entry.totalQty : 0;
-        stockInMap.set(pId, avgCost);
+      if (latestStockIn && latestStockIn.costPrice) {
+        quantityUnitCostMap.set(pid, Number(latestStockIn.costPrice));
+      } else {
+        quantityUnitCostMap.set(pid, 0);
       }
     }
 
     let totalRevenue = 0;
-    let totalCost = 0;
+    let totalCogs = 0;
     let totalQuantitySold = 0;
 
     const productMap = new Map<
@@ -573,88 +557,75 @@ export class ReportsService {
         trackingType: TrackingType;
         quantitySold: number;
         revenue: number;
-        cost: number;
+        cogs: number;
+        grossProfit: number;
+        grossMarginPercentage: number;
       }
     >();
 
     for (const movement of saleMovements) {
-      const product = movement.product;
       const qty = movement.quantity;
-      const sellingPrice = product?.sellingPrice ? Number(product.sellingPrice) : 0;
+      const sellingPrice = movement.product.sellingPrice
+        ? Number(movement.product.sellingPrice)
+        : 0;
       const movementRevenue = qty * sellingPrice;
 
-      let movementCost = 0;
+      let movementCogs = 0;
 
-      if (product?.trackingType === TrackingType.SERIALIZED) {
+      if (movement.product.trackingType === TrackingType.SERIALIZED) {
         for (const mu of movement.movementUnits) {
-          if (mu.productUnit && mu.productUnit.purchasePrice) {
-            movementCost += Number(mu.productUnit.purchasePrice);
-          }
+          const uCost = mu.productUnit.purchasePrice
+            ? Number(mu.productUnit.purchasePrice)
+            : 0;
+          movementCogs += uCost;
         }
-      } else if (product?.trackingType === TrackingType.QUANTITY) {
-        const avgUnitCost = stockInMap.get(movement.productId) || 0;
-        movementCost = qty * avgUnitCost;
+      } else if (movement.product.trackingType === TrackingType.QUANTITY) {
+        const unitCost = quantityUnitCostMap.get(movement.productId) || 0;
+        movementCogs = qty * unitCost;
       }
 
-      totalRevenue += movementRevenue;
-      totalCost += movementCost;
       totalQuantitySold += qty;
+      totalRevenue += movementRevenue;
+      totalCogs += movementCogs;
 
-      let pData = productMap.get(movement.productId);
-      if (!pData) {
-        pData = {
+      if (!productMap.has(movement.productId)) {
+        productMap.set(movement.productId, {
           productId: movement.productId,
-          productName: product?.name || 'Unknown Product',
-          brand: product?.brand || '',
-          productType: product?.productType,
-          trackingType: product?.trackingType,
+          productName: movement.product.name,
+          brand: movement.product.brand,
+          productType: movement.product.productType,
+          trackingType: movement.product.trackingType,
           quantitySold: 0,
           revenue: 0,
-          cost: 0,
-        };
-        productMap.set(movement.productId, pData);
+          cogs: 0,
+          grossProfit: 0,
+          grossMarginPercentage: 0,
+        });
       }
 
+      const pData = productMap.get(movement.productId)!;
       pData.quantitySold += qty;
       pData.revenue += movementRevenue;
-      pData.cost += movementCost;
+      pData.cogs += movementCogs;
     }
 
-    const overallGrossProfit = Number((totalRevenue - totalCost).toFixed(2));
-    const overallGrossMarginPercentage =
-      totalRevenue > 0
-        ? Number(((overallGrossProfit / totalRevenue) * 100).toFixed(2))
-        : 0;
-
     const byProduct = Array.from(productMap.values()).map((p) => {
-      const pRevenue = Number(p.revenue.toFixed(2));
-      const pCost = Number(p.cost.toFixed(2));
-      const pGrossProfit = Number((pRevenue - pCost).toFixed(2));
-      const pGrossMarginPercentage =
-        pRevenue > 0
-          ? Number(((pGrossProfit / pRevenue) * 100).toFixed(2))
-          : 0;
+      const grossProfit = p.revenue - p.cogs;
+      const grossMarginPercentage =
+        p.revenue > 0 ? (grossProfit / p.revenue) * 100 : 0;
 
       return {
-        productId: p.productId,
-        productName: p.productName,
-        brand: p.brand,
-        productType: p.productType,
-        trackingType: p.trackingType,
-        quantitySold: p.quantitySold,
-        revenue: pRevenue,
-        cost: pCost,
-        grossProfit: pGrossProfit,
-        grossMarginPercentage: pGrossMarginPercentage,
+        ...p,
+        revenue: Number(p.revenue.toFixed(2)),
+        cogs: Number(p.cogs.toFixed(2)),
+        grossProfit: Number(grossProfit.toFixed(2)),
+        grossMarginPercentage: Number(grossMarginPercentage.toFixed(2)),
       };
     });
 
-    byProduct.sort((a, b) => {
-      if (b.grossProfit !== a.grossProfit) {
-        return b.grossProfit - a.grossProfit;
-      }
-      return a.productName.localeCompare(b.productName);
-    });
+    const totalGrossProfit = totalRevenue - totalCogs;
+    const overallGrossMarginPercentage =
+      totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
 
     return {
       period: {
@@ -662,11 +633,11 @@ export class ReportsService {
         endDate: parsedEnd ? parsedEnd.toISOString() : null,
       },
       summary: {
-        totalRevenue: Number(totalRevenue.toFixed(2)),
-        totalCost: Number(totalCost.toFixed(2)),
-        grossProfit: overallGrossProfit,
-        grossMarginPercentage: overallGrossMarginPercentage,
         totalQuantitySold,
+        totalRevenue: Number(totalRevenue.toFixed(2)),
+        totalCogs: Number(totalCogs.toFixed(2)),
+        totalGrossProfit: Number(totalGrossProfit.toFixed(2)),
+        grossMarginPercentage: Number(overallGrossMarginPercentage.toFixed(2)),
       },
       byProduct,
     };

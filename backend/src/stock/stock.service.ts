@@ -13,6 +13,7 @@ import { ReturnStockDto } from './dto/return-stock.dto';
 import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
+import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
 
 @Injectable()
 export class StockService {
@@ -1169,6 +1170,9 @@ export class StockService {
         : 20;
     const skip = (page - 1) * limit;
 
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
     const where: Prisma.StockMovementWhereInput = {};
 
     if (query.productId) {
@@ -1183,23 +1187,23 @@ export class StockService {
     if (query.toLocation) {
       where.toLocation = query.toLocation;
     }
-    if (query.startDate || query.endDate) {
+    if (effectiveStart || effectiveEnd) {
       where.createdAt = {};
-      if (query.startDate) {
+      if (effectiveStart) {
         let parsedStart: Date;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(query.startDate.trim())) {
-          parsedStart = new Date(`${query.startDate.trim()}T00:00:00.000Z`);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+          parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
         } else {
-          parsedStart = new Date(query.startDate);
+          parsedStart = new Date(effectiveStart);
         }
         where.createdAt.gte = parsedStart;
       }
-      if (query.endDate) {
+      if (effectiveEnd) {
         let parsedEnd: Date;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(query.endDate.trim())) {
-          parsedEnd = new Date(`${query.endDate.trim()}T23:59:59.999Z`);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+          parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
         } else {
-          parsedEnd = new Date(query.endDate);
+          parsedEnd = new Date(effectiveEnd);
         }
         where.createdAt.lte = parsedEnd;
       }
@@ -1372,21 +1376,24 @@ export class StockService {
         : 20;
     const skip = (page - 1) * limit;
 
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
     let parsedStart: Date | null = null;
-    if (query.startDate) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(query.startDate.trim())) {
-        parsedStart = new Date(`${query.startDate.trim()}T00:00:00.000Z`);
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
       } else {
-        parsedStart = new Date(query.startDate);
+        parsedStart = new Date(effectiveStart);
       }
     }
 
     let parsedEnd: Date | null = null;
-    if (query.endDate) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(query.endDate.trim())) {
-        parsedEnd = new Date(`${query.endDate.trim()}T23:59:59.999Z`);
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
       } else {
-        parsedEnd = new Date(query.endDate);
+        parsedEnd = new Date(effectiveEnd);
       }
     }
 
@@ -1503,6 +1510,179 @@ export class StockService {
     });
 
     const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  async findReceipts(query: QueryStockReceiptDto) {
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const where: Prisma.StockMovementWhereInput = {
+      movementType: MovementType.STOCK_IN,
+    };
+
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+    if (query.location) {
+      where.toLocation = query.location;
+    }
+    if (parsedStart || parsedEnd) {
+      where.createdAt = {};
+      if (parsedStart) {
+        where.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        where.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const [rawReceipts, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              productType: true,
+              trackingType: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          stockBatch: {
+            select: {
+              id: true,
+              reference: true,
+              note: true,
+              createdById: true,
+              createdAt: true,
+            },
+          },
+          movementUnits: {
+            include: {
+              productUnit: {
+                select: {
+                  id: true,
+                  imei: true,
+                  serialNumber: true,
+                  storage: true,
+                  color: true,
+                  purchasePrice: true,
+                  location: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    const data = rawReceipts.map((r) => {
+      const units = r.movementUnits.map((mu) => ({
+        id: mu.productUnit.id,
+        imei: mu.productUnit.imei,
+        serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
+        purchasePrice: mu.productUnit.purchasePrice
+          ? Number(mu.productUnit.purchasePrice)
+          : null,
+        location: mu.productUnit.location,
+        status: mu.productUnit.status,
+      }));
+
+      return {
+        id: r.id,
+        productId: r.productId,
+        movementType: r.movementType,
+        fromLocation: r.fromLocation,
+        toLocation: r.toLocation,
+        quantity: r.quantity,
+        costPrice: r.costPrice ? Number(r.costPrice) : null,
+        note: r.note,
+        createdById: r.createdById,
+        createdAt: r.createdAt.toISOString(),
+        product: {
+          id: r.product.id,
+          name: r.product.name,
+          brand: r.product.brand,
+          productType: r.product.productType,
+          trackingType: r.product.trackingType,
+        },
+        createdBy: {
+          id: r.createdBy.id,
+          name: r.createdBy.name,
+          email: r.createdBy.email,
+          role: r.createdBy.role,
+        },
+        stockBatch: r.stockBatch
+          ? {
+              id: r.stockBatch.id,
+              reference: r.stockBatch.reference,
+              note: r.stockBatch.note,
+              createdById: r.stockBatch.createdById,
+              createdAt: r.stockBatch.createdAt.toISOString(),
+            }
+          : null,
+        units,
+      };
+    });
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
 
     return {
       data,

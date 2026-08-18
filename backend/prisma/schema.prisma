@@ -13,6 +13,7 @@ datasource db {
 
 enum UserRole {
   ADMIN
+  PRIMARY_ADMIN
   USER
 }
 

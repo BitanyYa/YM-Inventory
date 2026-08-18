@@ -5,7 +5,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { ReportsService } from './reports.service';
 import { QueryStockReportDto } from './dto/query-stock-report.dto';
 import { QuerySalesReportDto } from './dto/query-sales-report.dto';
@@ -13,7 +16,8 @@ import { QueryProfitReportDto } from './dto/query-profit-report.dto';
 
 @ApiTags('reports')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
@@ -21,7 +25,7 @@ export class ReportsController {
   @Get('stock-movements')
   @ApiOperation({
     summary:
-      'Get aggregated stock movement reports by period, movement type, and product breakdown',
+      'Get aggregated stock movement reports by period, movement type, and product breakdown (supports single date filter "date")',
   })
   @ApiResponse({
     status: 200,
@@ -47,7 +51,7 @@ export class ReportsController {
   @Get('sales')
   @ApiOperation({
     summary:
-      'Get aggregated sales report (total sales count, total quantity sold, total revenue value, and per-product sales breakdown)',
+      'Get aggregated sales report (total sales count, total quantity sold, total revenue value, and per-product sales breakdown; supports single date filter "date")',
   })
   @ApiResponse({
     status: 200,
@@ -64,7 +68,7 @@ export class ReportsController {
   @Get('profit')
   @ApiOperation({
     summary:
-      'Get gross profit report (revenue, COGS, gross profit, gross margin %, and per-product profit breakdown)',
+      'Get gross profit report (revenue, COGS, gross profit, gross margin %, and per-product profit breakdown; supports single date filter "date")',
   })
   @ApiResponse({
     status: 200,

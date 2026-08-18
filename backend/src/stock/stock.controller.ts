@@ -6,7 +6,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { StockService } from './stock.service';
 import { ReceiveStockDto } from './dto/receive-stock.dto';
@@ -16,18 +19,20 @@ import { ReturnStockDto } from './dto/return-stock.dto';
 import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
+import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('stock')
 export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   @Get('movements')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
-      'Get paginated stock movement history with optional filters (page, limit, productId, movementType, fromLocation, toLocation, startDate, endDate)',
+      'Get paginated stock movement history with optional filters (page, limit, productId, movementType, fromLocation, toLocation, date, startDate, endDate)',
   })
   @ApiResponse({
     status: 200,
@@ -42,9 +47,10 @@ export class StockController {
   }
 
   @Get('transfers')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
-      'Get paginated stock transfer history with optional filters (page, limit, productId, fromLocation, toLocation, startDate, endDate)',
+      'Get paginated stock transfer history with optional filters (page, limit, productId, fromLocation, toLocation, date, startDate, endDate)',
   })
   @ApiResponse({
     status: 200,
@@ -58,7 +64,26 @@ export class StockController {
     return this.stockService.findTransfers(query);
   }
 
+  @Get('receipts')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary:
+      'Get paginated stock-in / receiving history with optional filters (page, limit, productId, location, date, startDate, endDate)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of stock receipts ordered newest first with metadata',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. page < 1, limit < 1, limit > 100, or startDate > endDate)',
+  })
+  async getReceipts(@Query() query: QueryStockReceiptDto) {
+    return this.stockService.findReceipts(query);
+  }
+
   @Get('movements/:id')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Get detailed stock movement information by ID',
   })
@@ -74,6 +99,7 @@ export class StockController {
   }
 
   @Post('receive')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
   @ApiOperation({
     summary: 'Receive stock (stock in) for QUANTITY or SERIALIZED products into Warehouse',
   })
@@ -92,6 +118,7 @@ export class StockController {
   }
 
   @Post('transfer')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
   @ApiOperation({
     summary: 'Transfer stock from Warehouse to Shop for QUANTITY or SERIALIZED products',
   })
@@ -112,6 +139,7 @@ export class StockController {
   }
 
   @Post('sell')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Sell stock from Shop for QUANTITY or SERIALIZED products',
   })
@@ -132,6 +160,7 @@ export class StockController {
   }
 
   @Post('return')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
   @ApiOperation({
     summary: 'Return sold stock to Warehouse or Shop for QUANTITY or SERIALIZED products',
   })
@@ -152,6 +181,7 @@ export class StockController {
   }
 
   @Post('adjust')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
   @ApiOperation({
     summary: 'Adjust stock for DAMAGE or LOSS (QUANTITY or SERIALIZED products)',
   })

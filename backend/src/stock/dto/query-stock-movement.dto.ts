@@ -63,6 +63,14 @@ export class QueryStockMovementDto {
   toLocation?: Location;
 
   @ApiPropertyOptional({
+    example: '2026-08-17',
+    description: 'Single date filter (ISO string or YYYY-MM-DD). Automatically sets date range for that full single day.',
+  })
+  @IsDateString()
+  @IsOptional()
+  date?: string;
+
+  @ApiPropertyOptional({
     example: '2026-08-01T00:00:00.000Z',
     description: 'Filter movements created on or after this date string',
   })
