@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Location, Prisma, TrackingType, UnitStatus } from '@prisma/client';
+import { Location, Prisma, ProductType, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   InventoryStockStatus,
@@ -205,18 +205,81 @@ export class InventoryService {
     let lowStockProducts = 0;
     let outOfStockProducts = 0;
 
+    const byProductType: Record<ProductType, number> = {
+      [ProductType.PHONE]: 0,
+      [ProductType.ACCESSORY]: 0,
+      [ProductType.TABLET]: 0,
+      [ProductType.LAPTOP]: 0,
+      [ProductType.SMART_WATCH]: 0,
+      [ProductType.OTHER]: 0,
+    };
+
+    const byTrackingType: Record<TrackingType, number> = {
+      [TrackingType.SERIALIZED]: 0,
+      [TrackingType.QUANTITY]: 0,
+    };
+
+    const lowStockItems: any[] = [];
+
     for (const item of items) {
       warehouseUnits += item.warehouseQuantity;
       shopUnits += item.shopQuantity;
       totalUnits += item.totalQuantity;
 
-      if (item.isLowStock) {
-        lowStockProducts++;
-      }
-      if (item.isOutOfStock) {
+      if (item.stockStatus === InventoryStockStatus.OUT_OF_STOCK) {
         outOfStockProducts++;
+        lowStockItems.push({
+          productId: item.product.id,
+          name: item.product.name,
+          brand: item.product.brand,
+          productType: item.product.productType,
+          trackingType: item.product.trackingType,
+          warehouseQuantity: item.warehouseQuantity,
+          shopQuantity: item.shopQuantity,
+          totalQuantity: item.totalQuantity,
+          minimumStock: item.minimumStock,
+          stockStatus: InventoryStockStatus.OUT_OF_STOCK,
+        });
+      } else if (item.stockStatus === InventoryStockStatus.LOW_STOCK) {
+        lowStockProducts++;
+        lowStockItems.push({
+          productId: item.product.id,
+          name: item.product.name,
+          brand: item.product.brand,
+          productType: item.product.productType,
+          trackingType: item.product.trackingType,
+          warehouseQuantity: item.warehouseQuantity,
+          shopQuantity: item.shopQuantity,
+          totalQuantity: item.totalQuantity,
+          minimumStock: item.minimumStock,
+          stockStatus: InventoryStockStatus.LOW_STOCK,
+        });
+      }
+
+      if (
+        item.product.productType &&
+        byProductType[item.product.productType as ProductType] !== undefined
+      ) {
+        byProductType[item.product.productType as ProductType]++;
+      }
+      if (
+        item.product.trackingType &&
+        byTrackingType[item.product.trackingType as TrackingType] !== undefined
+      ) {
+        byTrackingType[item.product.trackingType as TrackingType]++;
       }
     }
+
+    // Sort lowStockItems: OUT_OF_STOCK first (ordered by name ASC), then LOW_STOCK by totalQuantity ASC (then name ASC)
+    lowStockItems.sort((a, b) => {
+      if (a.stockStatus !== b.stockStatus) {
+        return a.stockStatus === InventoryStockStatus.OUT_OF_STOCK ? -1 : 1;
+      }
+      if (a.totalQuantity !== b.totalQuantity) {
+        return a.totalQuantity - b.totalQuantity;
+      }
+      return a.name.localeCompare(b.name);
+    });
 
     return {
       totalProducts: items.length,
@@ -225,6 +288,13 @@ export class InventoryService {
       shopUnits,
       lowStockProducts,
       outOfStockProducts,
+      byProductType,
+      byTrackingType,
+      byLocation: {
+        [Location.WAREHOUSE]: warehouseUnits,
+        [Location.SHOP]: shopUnits,
+      },
+      lowStockItems,
     };
   }
 
