@@ -20,6 +20,7 @@ import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
 import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
+import { QueryStockSaleDto } from './dto/query-stock-sale.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -80,6 +81,24 @@ export class StockController {
   })
   async getReceipts(@Query() query: QueryStockReceiptDto) {
     return this.stockService.findReceipts(query);
+  }
+
+  @Get('sales')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary:
+      'Get paginated sales transaction history with optional filters (page, limit, productId, productType, trackingType, search, date, startDate, endDate)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of sale transactions ordered newest first with metadata',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. page < 1, limit < 1, limit > 100, or startDate > endDate)',
+  })
+  async getSales(@Query() query: QueryStockSaleDto) {
+    return this.stockService.findSales(query);
   }
 
   @Get('movements/:id')
