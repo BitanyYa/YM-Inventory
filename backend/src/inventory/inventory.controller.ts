@@ -21,7 +21,8 @@ export class InventoryController {
   @ApiOperation({ summary: 'Get current inventory summary statistics' })
   @ApiResponse({
     status: 200,
-    description: 'Current inventory statistics (totalProducts, totalUnits, warehouseUnits, shopUnits, lowStockProducts, outOfStockProducts)',
+    description:
+      'Current inventory statistics (totalProducts, totalUnits, warehouseUnits, shopUnits, lowStockProducts, outOfStockProducts)',
   })
   async getSummary() {
     return this.inventoryService.getSummary();
@@ -40,15 +41,15 @@ export class InventoryController {
   @Get()
   @ApiOperation({
     summary:
-      'Get current inventory state (warehouse & shop stock, total quantity, low stock status, and product units for serialized products)',
+      'Get paginated & filterable inventory list (supports page, limit, status, search, productType, trackingType, location, productId)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Current inventory state retrieved successfully',
+    description: 'Paginated inventory state retrieved successfully with metadata',
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid query parameters (e.g. invalid enum or boolean format)',
+    description: 'Invalid query parameters (e.g. page < 1, limit < 1, limit > 100, or invalid status/enum format)',
   })
   async getInventory(@Query() query: QueryInventoryDto) {
     return this.inventoryService.findInventory(query);

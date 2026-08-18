@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Location, Prisma, TrackingType } from '@prisma/client';
+import { Location, Prisma, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { QueryInventoryDto } from './dto/query-inventory.dto';
+import {
+  InventoryStockStatus,
+  QueryInventoryDto,
+} from './dto/query-inventory.dto';
 import { QueryLowStockDto } from './dto/query-low-stock.dto';
 
 @Injectable()
@@ -53,8 +56,26 @@ export class InventoryService {
       const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
       const shopQuantity = shopRecord ? shopRecord.quantity : 0;
       const totalQuantity = warehouseQuantity + shopQuantity;
+
       const isLowStock = totalQuantity <= product.minimumStock;
       const isOutOfStock = totalQuantity === 0;
+
+      let stockStatus: InventoryStockStatus;
+      if (totalQuantity === 0) {
+        stockStatus = InventoryStockStatus.OUT_OF_STOCK;
+      } else if (totalQuantity <= product.minimumStock) {
+        stockStatus = InventoryStockStatus.LOW_STOCK;
+      } else {
+        stockStatus = InventoryStockStatus.IN_STOCK;
+      }
+
+      // Filter active sellable units for serialized products
+      const activeUnits = (product.productUnits || []).filter(
+        (u) =>
+          (u.location === Location.WAREHOUSE &&
+            u.status === UnitStatus.AVAILABLE) ||
+          (u.location === Location.SHOP && u.status === UnitStatus.IN_SHOP),
+      );
 
       const { inventory, productUnits, ...productData } = product;
 
@@ -63,16 +84,20 @@ export class InventoryService {
         warehouseQuantity,
         shopQuantity,
         totalQuantity,
+        minimumStock: product.minimumStock,
         isLowStock,
         isOutOfStock,
-        rawUnits: productUnits || [],
+        stockStatus,
+        rawUnits: activeUnits,
         trackingType: product.trackingType,
       };
     });
   }
 
   async findInventory(query: QueryInventoryDto) {
-    const productWhere: Prisma.ProductWhereInput = {};
+    const productWhere: Prisma.ProductWhereInput = {
+      isActive: true,
+    };
 
     if (query.productId) {
       productWhere.id = query.productId;
@@ -85,6 +110,13 @@ export class InventoryService {
     }
     if (query.trackingType) {
       productWhere.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productWhere.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
     }
 
     const items = await this.getProcessedInventoryItems(productWhere);
@@ -105,7 +137,14 @@ export class InventoryService {
         }
       }
 
-      // Low stock filter evaluation
+      // Stock status filter evaluation
+      if (query.status) {
+        if (item.stockStatus !== query.status) {
+          continue;
+        }
+      }
+
+      // Legacy lowStock boolean filter evaluation
       if (query.lowStock !== undefined) {
         if (query.lowStock === true && !item.isLowStock) {
           continue;
@@ -126,12 +165,35 @@ export class InventoryService {
         warehouseQuantity: item.warehouseQuantity,
         shopQuantity: item.shopQuantity,
         totalQuantity: item.totalQuantity,
+        minimumStock: item.minimumStock,
         isLowStock: item.isLowStock,
+        isOutOfStock: item.isOutOfStock,
+        stockStatus: item.stockStatus,
         units: item.trackingType === TrackingType.SERIALIZED ? units : [],
       });
     }
 
-    return results;
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+
+    const total = results.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    const startIndex = (page - 1) * limit;
+    const data = results.slice(startIndex, startIndex + limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   }
 
   async getSummary() {
@@ -189,7 +251,10 @@ export class InventoryService {
       warehouseQuantity: item.warehouseQuantity,
       shopQuantity: item.shopQuantity,
       totalQuantity: item.totalQuantity,
+      minimumStock: item.minimumStock,
       isLowStock: item.isLowStock,
+      isOutOfStock: item.isOutOfStock,
+      stockStatus: item.stockStatus,
       units: item.trackingType === TrackingType.SERIALIZED ? item.rawUnits : [],
     }));
   }
