@@ -15,6 +15,7 @@ import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
 import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
 import { QueryStockSaleDto } from './dto/query-stock-sale.dto';
+import { QueryStockReturnDto } from './dto/query-stock-return.dto';
 
 @Injectable()
 export class StockService {
@@ -1858,6 +1859,189 @@ export class StockService {
         },
         units: s.product.trackingType === TrackingType.SERIALIZED ? units : [],
         revenue,
+      };
+    });
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  async findReturns(query: QueryStockReturnDto) {
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const where: Prisma.StockMovementWhereInput = {
+      movementType: MovementType.RETURN,
+    };
+
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+    if (query.location) {
+      where.toLocation = query.location;
+    }
+    if (query.createdById) {
+      where.createdById = query.createdById;
+    }
+
+    const productConditions: Prisma.ProductWhereInput = {};
+    if (query.productType) {
+      productConditions.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productConditions.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productConditions.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    if (Object.keys(productConditions).length > 0) {
+      where.product = productConditions;
+    }
+
+    if (parsedStart || parsedEnd) {
+      where.createdAt = {};
+      if (parsedStart) {
+        where.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        where.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const [rawReturns, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              productType: true,
+              trackingType: true,
+              sellingPrice: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          movementUnits: {
+            include: {
+              productUnit: {
+                select: {
+                  id: true,
+                  imei: true,
+                  serialNumber: true,
+                  storage: true,
+                  color: true,
+                  purchasePrice: true,
+                  location: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    const data = rawReturns.map((r) => {
+      const sellingPriceNum = r.product.sellingPrice
+        ? Number(r.product.sellingPrice)
+        : 0;
+
+      const units = r.movementUnits.map((mu) => ({
+        id: mu.productUnit.id,
+        imei: mu.productUnit.imei,
+        serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
+        purchasePrice: mu.productUnit.purchasePrice
+          ? Number(mu.productUnit.purchasePrice)
+          : null,
+        location: mu.productUnit.location,
+        status: mu.productUnit.status,
+      }));
+
+      return {
+        id: r.id,
+        movementType: r.movementType,
+        quantity: r.quantity,
+        fromLocation: r.fromLocation,
+        toLocation: r.toLocation,
+        costPrice: r.costPrice ? Number(r.costPrice) : null,
+        note: r.note,
+        createdById: r.createdById,
+        createdAt: r.createdAt.toISOString(),
+        product: {
+          id: r.product.id,
+          name: r.product.name,
+          brand: r.product.brand,
+          productType: r.product.productType,
+          trackingType: r.product.trackingType,
+          sellingPrice: sellingPriceNum,
+        },
+        createdBy: {
+          id: r.createdBy.id,
+          name: r.createdBy.name,
+          email: r.createdBy.email,
+          role: r.createdBy.role,
+        },
+        units: r.product.trackingType === TrackingType.SERIALIZED ? units : [],
       };
     });
 
