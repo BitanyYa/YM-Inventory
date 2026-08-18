@@ -8,6 +8,7 @@ import {
 import { QueryLowStockDto } from './dto/query-low-stock.dto';
 import { QueryProductMovementDto } from './dto/query-product-movement.dto';
 import { InventoryAlertStatus, QueryStockAlertDto } from './dto/query-stock-alert.dto';
+import { AdjustInventoryDto } from './dto/adjust-inventory.dto';
 
 @Injectable()
 export class InventoryService {
@@ -781,5 +782,95 @@ export class InventoryService {
         totalPages,
       },
     };
+  }
+
+  async adjustInventory(dto: AdjustInventoryDto, userId: string) {
+    if (
+      dto.location !== Location.WAREHOUSE &&
+      dto.location !== Location.SHOP
+    ) {
+      throw new BadRequestException('location must be either WAREHOUSE or SHOP');
+    }
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID "${dto.productId}" not found`);
+    }
+
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `Product "${product.name}" is inactive/soft-deleted and cannot be adjusted`,
+      );
+    }
+
+    if (product.trackingType === TrackingType.SERIALIZED) {
+      throw new BadRequestException(
+        'Serialized inventory cannot be adjusted via quantity adjustment. Adjust individual product units instead.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const inventory = await tx.inventory.findUnique({
+        where: {
+          productId_location: {
+            productId: product.id,
+            location: dto.location,
+          },
+        },
+      });
+
+      const currentQuantity = inventory ? inventory.quantity : 0;
+      const adjustment = dto.newQuantity - currentQuantity;
+
+      if (adjustment === 0) {
+        throw new BadRequestException('No inventory adjustment is required');
+      }
+
+      if (inventory) {
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: {
+            quantity: dto.newQuantity,
+          },
+        });
+      } else if (dto.newQuantity > 0) {
+        await tx.inventory.create({
+          data: {
+            productId: product.id,
+            location: dto.location,
+            quantity: dto.newQuantity,
+          },
+        });
+      }
+
+      const defaultNote = 'Inventory adjustment: physical count correction';
+      const note = dto.note ? `${defaultNote} - ${dto.note}` : defaultNote;
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          productId: product.id,
+          movementType: adjustment > 0 ? MovementType.STOCK_IN : MovementType.LOSS,
+          quantity: Math.abs(adjustment),
+          fromLocation: adjustment < 0 ? dto.location : null,
+          toLocation: adjustment > 0 ? dto.location : null,
+          createdById: userId,
+          note,
+        },
+      });
+
+      return {
+        productId: product.id,
+        location: dto.location,
+        previousQuantity: currentQuantity,
+        newQuantity: dto.newQuantity,
+        adjustment,
+        movementId: movement.id,
+        movementType: movement.movementType,
+        note,
+      };
+    });
   }
 }

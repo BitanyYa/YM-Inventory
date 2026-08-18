@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -6,16 +6,21 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 import { InventoryService } from './inventory.service';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
 import { QueryLowStockDto } from './dto/query-low-stock.dto';
 import { QueryProductMovementDto } from './dto/query-product-movement.dto';
 import { QueryStockAlertDto } from './dto/query-stock-alert.dto';
+import { AdjustInventoryDto } from './dto/adjust-inventory.dto';
 
 @ApiTags('inventory')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
@@ -56,6 +61,27 @@ export class InventoryController {
   })
   async getStockAlerts(@Query() query: QueryStockAlertDto) {
     return this.inventoryService.getStockAlerts(query);
+  }
+
+  @Post('adjust')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({
+    summary: 'Adjust physical inventory quantity for QUANTITY-tracked products (Admin only)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Inventory successfully adjusted and stock movement recorded',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error, inactive product, serialized product, or zero adjustment',
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async adjustInventory(
+    @Body() dto: AdjustInventoryDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.inventoryService.adjustInventory(dto, userId);
   }
 
   @Get('products/:productId/movements')
