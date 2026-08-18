@@ -16,6 +16,7 @@ import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
 import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
 import { QueryStockSaleDto } from './dto/query-stock-sale.dto';
 import { QueryStockReturnDto } from './dto/query-stock-return.dto';
+import { QueryMovementSummaryDto } from './dto/query-movement-summary.dto';
 
 @Injectable()
 export class StockService {
@@ -1162,6 +1163,180 @@ export class StockService {
         };
       }
     });
+  }
+
+  async getMovementSummary(query: QueryMovementSummaryDto) {
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const where: Prisma.StockMovementWhereInput = {};
+
+    if (parsedStart || parsedEnd) {
+      where.createdAt = {};
+      if (parsedStart) {
+        where.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        where.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const [movements, recentMovementsRaw] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        select: {
+          id: true,
+          movementType: true,
+          quantity: true,
+          toLocation: true,
+          productId: true,
+        },
+      }),
+      this.prisma.stockMovement.findMany({
+        where,
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          movementType: true,
+          quantity: true,
+          fromLocation: true,
+          toLocation: true,
+          note: true,
+          createdAt: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              productType: true,
+              trackingType: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const totalMovements = movements.length;
+    let totalUnitsMoved = 0;
+
+    const byMovementType: Record<MovementType, number> = {
+      [MovementType.STOCK_IN]: 0,
+      [MovementType.TRANSFER]: 0,
+      [MovementType.SALE]: 0,
+      [MovementType.RETURN]: 0,
+      [MovementType.DAMAGE]: 0,
+      [MovementType.LOSS]: 0,
+    };
+
+    const quantityByMovementType: Record<MovementType, number> = {
+      [MovementType.STOCK_IN]: 0,
+      [MovementType.TRANSFER]: 0,
+      [MovementType.SALE]: 0,
+      [MovementType.RETURN]: 0,
+      [MovementType.DAMAGE]: 0,
+      [MovementType.LOSS]: 0,
+    };
+
+    const byLocation: Record<Location, number> = {
+      [Location.WAREHOUSE]: 0,
+      [Location.SHOP]: 0,
+    };
+
+    const productMap = new Map<string, number>();
+
+    for (const m of movements) {
+      const qty = m.quantity;
+      totalUnitsMoved += qty;
+
+      if (byMovementType[m.movementType] !== undefined) {
+        byMovementType[m.movementType] += 1;
+      }
+      if (quantityByMovementType[m.movementType] !== undefined) {
+        quantityByMovementType[m.movementType] += qty;
+      }
+      if (m.toLocation && byLocation[m.toLocation] !== undefined) {
+        byLocation[m.toLocation] += qty;
+      }
+
+      productMap.set(m.productId, (productMap.get(m.productId) || 0) + qty);
+    }
+
+    const sortedProductEntries = Array.from(productMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    const topProductIds = sortedProductEntries.map(([id]) => id);
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: topProductIds } },
+      select: { id: true, name: true, brand: true },
+    });
+
+    const productInfoMap = new Map(products.map((p) => [p.id, p]));
+
+    const topProducts = sortedProductEntries.map(([pid, qty]) => {
+      const p = productInfoMap.get(pid);
+      return {
+        productId: pid,
+        productName: p ? p.name : 'Unknown Product',
+        brand: p ? p.brand : 'Unknown Brand',
+        totalQuantityMoved: qty,
+      };
+    });
+
+    const recentMovements = recentMovementsRaw.map((m) => ({
+      id: m.id,
+      movementType: m.movementType,
+      quantity: m.quantity,
+      fromLocation: m.fromLocation,
+      toLocation: m.toLocation,
+      note: m.note,
+      createdAt: m.createdAt.toISOString(),
+      product: {
+        id: m.product.id,
+        name: m.product.name,
+        brand: m.product.brand,
+        productType: m.product.productType,
+        trackingType: m.product.trackingType,
+      },
+    }));
+
+    return {
+      totalMovements,
+      totalUnitsMoved,
+      byMovementType,
+      quantityByMovementType,
+      byLocation,
+      recentMovements,
+      topProducts,
+      dateRange: {
+        startDate: parsedStart ? parsedStart.toISOString() : null,
+        endDate: parsedEnd ? parsedEnd.toISOString() : null,
+      },
+    };
   }
 
   async findMovements(query: QueryStockMovementDto) {

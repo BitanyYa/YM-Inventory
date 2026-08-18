@@ -22,6 +22,7 @@ import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
 import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
 import { QueryStockSaleDto } from './dto/query-stock-sale.dto';
 import { QueryStockReturnDto } from './dto/query-stock-return.dto';
+import { QueryMovementSummaryDto } from './dto/query-movement-summary.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -29,6 +30,24 @@ import { QueryStockReturnDto } from './dto/query-stock-return.dto';
 @Controller('stock')
 export class StockController {
   constructor(private readonly stockService: StockService) {}
+
+  @Get('movements/summary')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary:
+      'Get aggregated stock movement dashboard summary statistics (total movements, total units, counts & quantities by movement type, location breakdown, 5 recent movements, top 5 products)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Stock movement summary statistics retrieved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. startDate > endDate)',
+  })
+  async getMovementSummary(@Query() query: QueryMovementSummaryDto) {
+    return this.stockService.getMovementSummary(query);
+  }
 
   @Get('movements')
   @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
