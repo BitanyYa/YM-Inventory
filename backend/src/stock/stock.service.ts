@@ -640,8 +640,6 @@ export class StockService {
             id: true,
             imei: true,
             serialNumber: true,
-            storage: true,
-            color: true,
             purchasePrice: true,
             location: true,
             status: true,
@@ -1754,8 +1752,6 @@ export class StockService {
             productType: true,
             trackingType: true,
             sellingPrice: true,
-            minimumStock: true,
-            isActive: true,
           },
         },
         createdBy: {
@@ -1766,7 +1762,15 @@ export class StockService {
             role: true,
           },
         },
-        stockBatch: true,
+        stockBatch: {
+          select: {
+            id: true,
+            reference: true,
+            note: true,
+            createdById: true,
+            createdAt: true,
+          },
+        },
         movementUnits: {
           include: {
             productUnit: {
@@ -1787,21 +1791,24 @@ export class StockService {
     });
 
     if (!movement) {
-      throw new NotFoundException(`Stock movement with ID "${id}" not found`);
+      throw new NotFoundException(`Movement with ID "${id}" not found`);
     }
 
-    const units = movement.movementUnits.map((mu) => ({
-      id: mu.productUnit.id,
-      imei: mu.productUnit.imei,
-      serialNumber: mu.productUnit.serialNumber,
-      storage: mu.productUnit.storage,
-      color: mu.productUnit.color,
-      purchasePrice: mu.productUnit.purchasePrice
-        ? Number(mu.productUnit.purchasePrice)
-        : null,
-      location: mu.productUnit.location,
-      status: mu.productUnit.status,
-    }));
+    const units =
+      movement.product.trackingType === TrackingType.SERIALIZED
+        ? movement.movementUnits.map((mu) => ({
+            id: mu.productUnit.id,
+            imei: mu.productUnit.imei,
+            serialNumber: mu.productUnit.serialNumber,
+            storage: mu.productUnit.storage,
+            color: mu.productUnit.color,
+            purchasePrice: mu.productUnit.purchasePrice
+              ? Number(mu.productUnit.purchasePrice)
+              : null,
+            location: mu.productUnit.location,
+            status: mu.productUnit.status,
+          }))
+        : [];
 
     return {
       id: movement.id,
@@ -1822,8 +1829,6 @@ export class StockService {
         sellingPrice: movement.product.sellingPrice
           ? Number(movement.product.sellingPrice)
           : 0,
-        minimumStock: movement.product.minimumStock,
-        isActive: movement.product.isActive,
       },
       createdBy: {
         id: movement.createdBy.id,
@@ -1831,6 +1836,7 @@ export class StockService {
         email: movement.createdBy.email,
         role: movement.createdBy.role,
       },
+      units,
       stockBatch: movement.stockBatch
         ? {
             id: movement.stockBatch.id,
@@ -1840,8 +1846,11 @@ export class StockService {
             createdAt: movement.stockBatch.createdAt.toISOString(),
           }
         : null,
-      units,
     };
+  }
+
+  async getMovementById(id: string) {
+    return this.findMovementById(id);
   }
 
   async findTransfers(query: QueryStockTransferDto) {

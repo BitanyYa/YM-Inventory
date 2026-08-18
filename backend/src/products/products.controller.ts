@@ -16,24 +16,30 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { UpdateProductStatusDto } from './dto/update-product-status.dto';
 import { QueryProductDto } from './dto/query-product.dto';
 import { QueryProductUnitDto } from './dto/query-product-unit.dto';
 
 @ApiTags('products')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new product' })
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({ summary: 'Create a new product (Admin only)' })
   @ApiResponse({ status: 201, description: 'Product created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 403, description: 'Forbidden for normal users' })
   @ApiResponse({ status: 404, description: 'Category not found' })
   async create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
@@ -84,9 +90,12 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get product details by ID' })
+  @ApiOperation({ summary: 'Get product details by ID with current inventory quantities & unit summary' })
   @ApiParam({ name: 'id', description: 'Product UUID' })
-  @ApiResponse({ status: 200, description: 'Product details with category' })
+  @ApiResponse({
+    status: 200,
+    description: 'Product details with category, inventory, and unit summary',
+  })
   @ApiResponse({ status: 404, description: 'Product not found' })
   async findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
@@ -110,10 +119,26 @@ export class ProductsController {
     return this.productsService.findUnits(id);
   }
 
+  @Patch(':id/status')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({ summary: 'Update product active status (Admin only)' })
+  @ApiParam({ name: 'id', description: 'Product UUID' })
+  @ApiResponse({ status: 200, description: 'Product status updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden for normal users' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductStatusDto,
+  ) {
+    return this.productsService.updateStatus(id, dto);
+  }
+
   @Patch(':id')
-  @ApiOperation({ summary: 'Update product by ID' })
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({ summary: 'Update product by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'Product UUID' })
   @ApiResponse({ status: 200, description: 'Product updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden for normal users' })
   @ApiResponse({ status: 404, description: 'Product or Category not found' })
   async update(
     @Param('id') id: string,
@@ -123,9 +148,11 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Soft delete product by ID (sets isActive=false)' })
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({ summary: 'Soft delete product by ID (sets isActive=false, Admin only)' })
   @ApiParam({ name: 'id', description: 'Product UUID' })
   @ApiResponse({ status: 200, description: 'Product soft deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden for normal users' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   async remove(@Param('id') id: string) {
     return this.productsService.remove(id);

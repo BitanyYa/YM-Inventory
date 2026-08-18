@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TrackingType } from '@prisma/client';
+import { Location, Prisma, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { UpdateProductStatusDto } from './dto/update-product-status.dto';
 import { QueryProductDto } from './dto/query-product.dto';
 import { QueryProductUnitDto } from './dto/query-product-unit.dto';
 
@@ -19,7 +20,7 @@ export class ProductsService {
       throw new NotFoundException(`Category with ID "${dto.categoryId}" not found`);
     }
 
-    return this.prisma.product.create({
+    const product = await this.prisma.product.create({
       data: {
         name: dto.name,
         brand: dto.brand,
@@ -35,6 +36,11 @@ export class ProductsService {
         category: true,
       },
     });
+
+    return {
+      ...product,
+      sellingPrice: Number(product.sellingPrice),
+    };
   }
 
   async findAll(query: QueryProductDto) {
@@ -55,7 +61,7 @@ export class ProductsService {
       where.isActive = true;
     }
 
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where,
       include: {
         category: true,
@@ -64,6 +70,11 @@ export class ProductsService {
         createdAt: 'desc',
       },
     });
+
+    return products.map((p) => ({
+      ...p,
+      sellingPrice: p.sellingPrice ? Number(p.sellingPrice) : 0,
+    }));
   }
 
   async findAllUnits(query: QueryProductUnitDto) {
@@ -85,7 +96,7 @@ export class ProductsService {
       where.status = query.status;
     }
 
-    return this.prisma.productUnit.findMany({
+    const units = await this.prisma.productUnit.findMany({
       where,
       orderBy: {
         createdAt: 'desc',
@@ -113,13 +124,35 @@ export class ProductsService {
         },
       },
     });
+
+    return units.map((u) => ({
+      ...u,
+      purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+      product: {
+        ...u.product,
+        sellingPrice: u.product.sellingPrice ? Number(u.product.sellingPrice) : 0,
+      },
+    }));
   }
 
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
-        category: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        inventory: true,
+        productUnits: {
+          select: {
+            id: true,
+            location: true,
+            status: true,
+          },
+        },
       },
     });
 
@@ -127,7 +160,62 @@ export class ProductsService {
       throw new NotFoundException(`Product with ID "${id}" not found`);
     }
 
-    return product;
+    const warehouseRecord = product.inventory.find(
+      (i) => i.location === Location.WAREHOUSE,
+    );
+    const shopRecord = product.inventory.find(
+      (i) => i.location === Location.SHOP,
+    );
+
+    const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+    const shopQuantity = shopRecord ? shopRecord.quantity : 0;
+    const totalQuantity = warehouseQuantity + shopQuantity;
+
+    let warehouseAvailable = 0;
+    let shopAvailable = 0;
+
+    if (product.trackingType === TrackingType.SERIALIZED) {
+      for (const u of product.productUnits || []) {
+        if (u.location === Location.WAREHOUSE && u.status === UnitStatus.AVAILABLE) {
+          warehouseAvailable++;
+        } else if (u.location === Location.SHOP && u.status === UnitStatus.IN_SHOP) {
+          shopAvailable++;
+        }
+      }
+    }
+
+    const availableUnits = warehouseAvailable + shopAvailable;
+
+    return {
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      productType: product.productType,
+      trackingType: product.trackingType,
+      sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
+      minimumStock: product.minimumStock,
+      isActive: product.isActive,
+      description: product.description,
+      image: product.image,
+      category: product.category
+        ? {
+            id: product.category.id,
+            name: product.category.name,
+          }
+        : null,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
+      inventory: {
+        warehouseQuantity,
+        shopQuantity,
+        totalQuantity,
+      },
+      unitSummary: {
+        availableUnits,
+        warehouseAvailable,
+        shopAvailable,
+      },
+    };
   }
 
   async findUnit(unitId: string) {
@@ -163,7 +251,16 @@ export class ProductsService {
       throw new NotFoundException(`Product unit with ID "${unitId}" not found`);
     }
 
-    return unit;
+    return {
+      ...unit,
+      purchasePrice: unit.purchasePrice ? Number(unit.purchasePrice) : null,
+      product: {
+        ...unit.product,
+        sellingPrice: unit.product.sellingPrice
+          ? Number(unit.product.sellingPrice)
+          : 0,
+      },
+    };
   }
 
   async findUnitHistory(unitId: string) {
@@ -286,7 +383,7 @@ export class ProductsService {
       );
     }
 
-    return this.prisma.productUnit.findMany({
+    const units = await this.prisma.productUnit.findMany({
       where: { productId },
       select: {
         id: true,
@@ -304,6 +401,11 @@ export class ProductsService {
         createdAt: 'asc',
       },
     });
+
+    return units.map((u) => ({
+      ...u,
+      purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+    }));
   }
 
   async update(id: string, dto: UpdateProductDto) {
@@ -319,24 +421,71 @@ export class ProductsService {
       }
     }
 
-    return this.prisma.product.update({
+    const { trackingType, ...updateData }: any = dto;
+
+    const updated = await this.prisma.product.update({
       where: { id },
-      data: dto,
+      data: updateData,
       include: {
-        category: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
+
+    return {
+      ...updated,
+      sellingPrice: updated.sellingPrice ? Number(updated.sellingPrice) : 0,
+    };
+  }
+
+  async updateStatus(id: string, dto: UpdateProductStatusDto) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID "${id}" not found`);
+    }
+
+    if (product.isActive === dto.isActive) {
+      return {
+        ...product,
+        sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
+      };
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { isActive: dto.isActive },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return {
+      ...updated,
+      sellingPrice: updated.sellingPrice ? Number(updated.sellingPrice) : 0,
+    };
   }
 
   async remove(id: string) {
-    await this.findOne(id);
-
-    return this.prisma.product.update({
-      where: { id },
-      data: { isActive: false },
-      include: {
-        category: true,
-      },
-    });
+    return this.updateStatus(id, { isActive: false });
   }
 }
