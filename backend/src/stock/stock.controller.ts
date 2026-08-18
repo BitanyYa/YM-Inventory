@@ -23,6 +23,8 @@ import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
 import { QueryStockSaleDto } from './dto/query-stock-sale.dto';
 import { QueryStockReturnDto } from './dto/query-stock-return.dto';
 import { QueryMovementSummaryDto } from './dto/query-movement-summary.dto';
+import { DamageStockDto } from './dto/damage-stock.dto';
+import { LossStockDto } from './dto/loss-stock.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -235,6 +237,48 @@ export class StockController {
     @GetUser('id') userId: string,
   ) {
     return this.stockService.returnStock(dto, userId);
+  }
+
+  @Post('damage')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({
+    summary: 'Record damaged stock at WAREHOUSE or SHOP (QUANTITY or SERIALIZED products)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Stock successfully recorded as damaged',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error, inactive product, insufficient stock, or unit not in active status',
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async damageStock(
+    @Body() dto: DamageStockDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.stockService.damageStock(dto, userId);
+  }
+
+  @Post('loss')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({
+    summary: 'Record lost stock at WAREHOUSE or SHOP (QUANTITY or SERIALIZED products)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Stock successfully recorded as lost',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error, inactive product, insufficient stock, or unit not in active status',
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async lossStock(
+    @Body() dto: LossStockDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.stockService.lossStock(dto, userId);
   }
 
   @Post('adjust')
