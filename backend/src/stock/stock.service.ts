@@ -22,6 +22,7 @@ import { LossStockDto } from './dto/loss-stock.dto';
 import { QueryStockInDto } from './dto/query-stock-in.dto';
 import { QueryStockDamageDto } from './dto/query-stock-damage.dto';
 import { QueryStockAdjustmentDto } from './dto/query-stock-adjustment.dto';
+import { QueryStockSummaryDto } from './dto/query-stock-summary.dto';
 
 @Injectable()
 export class StockService {
@@ -3159,6 +3160,253 @@ export class StockService {
         limit,
         total,
         totalPages,
+      },
+    };
+  }
+
+  async getSummary(query: QueryStockSummaryDto) {
+    const effectiveStart = query.startDate;
+    const effectiveEnd = query.endDate;
+
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const productWhere: Prisma.ProductWhereInput = {};
+    if (query.productType) {
+      productWhere.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productWhere.trackingType = query.trackingType;
+    }
+
+    const [products, units] = await Promise.all([
+      this.prisma.product.findMany({
+        where: productWhere,
+        include: {
+          inventory: true,
+        },
+      }),
+      this.prisma.productUnit.findMany({
+        where: {
+          product: productWhere,
+          OR: [
+            { location: Location.WAREHOUSE, status: UnitStatus.AVAILABLE },
+            { location: Location.SHOP, status: UnitStatus.IN_SHOP },
+          ],
+        },
+        select: {
+          location: true,
+          status: true,
+        },
+      }),
+    ]);
+
+    let totalProducts = products.length;
+    let activeProducts = 0;
+    let inactiveProducts = 0;
+    let outOfStockProducts = 0;
+    let lowStockProducts = 0;
+    let inStockProducts = 0;
+
+    let warehouseQuantity = 0;
+    let shopQuantity = 0;
+
+    for (const p of products) {
+      if (p.isActive) {
+        activeProducts++;
+      } else {
+        inactiveProducts++;
+      }
+
+      const whRec = p.inventory.find((i) => i.location === Location.WAREHOUSE);
+      const shRec = p.inventory.find((i) => i.location === Location.SHOP);
+
+      const whQty = whRec ? whRec.quantity : 0;
+      const shQty = shRec ? shRec.quantity : 0;
+      const totalQty = whQty + shQty;
+
+      if (query.location === undefined || query.location === Location.WAREHOUSE) {
+        warehouseQuantity += whQty;
+      }
+      if (query.location === undefined || query.location === Location.SHOP) {
+        shopQuantity += shQty;
+      }
+
+      if (totalQty === 0) {
+        outOfStockProducts++;
+      } else if (totalQty <= p.minimumStock) {
+        lowStockProducts++;
+      } else {
+        inStockProducts++;
+      }
+    }
+
+    const totalQuantity = warehouseQuantity + shopQuantity;
+
+    let warehouseAvailable = 0;
+    let shopAvailable = 0;
+
+    for (const u of units) {
+      if (
+        u.location === Location.WAREHOUSE &&
+        u.status === UnitStatus.AVAILABLE &&
+        (query.location === undefined || query.location === Location.WAREHOUSE)
+      ) {
+        warehouseAvailable++;
+      } else if (
+        u.location === Location.SHOP &&
+        u.status === UnitStatus.IN_SHOP &&
+        (query.location === undefined || query.location === Location.SHOP)
+      ) {
+        shopAvailable++;
+      }
+    }
+
+    const totalAvailable = warehouseAvailable + shopAvailable;
+
+    const movementWhere: Prisma.StockMovementWhereInput = {};
+
+    if (Object.keys(productWhere).length > 0) {
+      movementWhere.product = productWhere;
+    }
+
+    if (query.location) {
+      movementWhere.OR = [
+        { fromLocation: query.location },
+        { toLocation: query.location },
+      ];
+    }
+
+    if (parsedStart || parsedEnd) {
+      movementWhere.createdAt = {};
+      if (parsedStart) {
+        movementWhere.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        movementWhere.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const movements = await this.prisma.stockMovement.findMany({
+      where: movementWhere,
+      select: {
+        movementType: true,
+        quantity: true,
+        product: {
+          select: {
+            sellingPrice: true,
+          },
+        },
+      },
+    });
+
+    let stockIn = 0;
+    let transfers = 0;
+    let sales = 0;
+    let returns = 0;
+    let damages = 0;
+    let losses = 0;
+
+    let saleTransactions = 0;
+    let saleQuantity = 0;
+    let totalRevenue = 0;
+
+    let returnTransactions = 0;
+    let returnQuantity = 0;
+
+    for (const m of movements) {
+      const qty = m.quantity;
+      switch (m.movementType) {
+        case MovementType.STOCK_IN:
+          stockIn++;
+          break;
+        case MovementType.TRANSFER:
+          transfers++;
+          break;
+        case MovementType.SALE:
+          sales++;
+          saleTransactions++;
+          saleQuantity += qty;
+          totalRevenue +=
+            qty * (m.product.sellingPrice ? Number(m.product.sellingPrice) : 0);
+          break;
+        case MovementType.RETURN:
+          returns++;
+          returnTransactions++;
+          returnQuantity += qty;
+          break;
+        case MovementType.DAMAGE:
+          damages++;
+          break;
+        case MovementType.LOSS:
+          losses++;
+          break;
+      }
+    }
+
+    const totalMovements = movements.length;
+
+    return {
+      data: {
+        inventory: {
+          warehouseQuantity,
+          shopQuantity,
+          totalQuantity,
+        },
+        serializedUnits: {
+          warehouseAvailable,
+          shopAvailable,
+          totalAvailable,
+        },
+        products: {
+          total: totalProducts,
+          active: activeProducts,
+          inactive: inactiveProducts,
+          outOfStock: outOfStockProducts,
+          lowStock: lowStockProducts,
+          inStock: inStockProducts,
+        },
+        movements: {
+          stockIn,
+          transfers,
+          sales,
+          returns,
+          damages,
+          losses,
+          total: totalMovements,
+        },
+        sales: {
+          totalTransactions: saleTransactions,
+          totalQuantity: saleQuantity,
+          totalRevenue,
+        },
+        returns: {
+          totalTransactions: returnTransactions,
+          totalQuantity: returnQuantity,
+        },
+        alerts: {
+          lowStockProducts,
+          outOfStockProducts,
+        },
       },
     };
   }

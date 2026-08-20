@@ -28,6 +28,7 @@ import { LossStockDto } from './dto/loss-stock.dto';
 import { QueryStockInDto } from './dto/query-stock-in.dto';
 import { QueryStockDamageDto } from './dto/query-stock-damage.dto';
 import { QueryStockAdjustmentDto } from './dto/query-stock-adjustment.dto';
+import { QueryStockSummaryDto } from './dto/query-stock-summary.dto';
 
 @ApiTags('stock')
 @ApiBearerAuth()
@@ -35,6 +36,24 @@ import { QueryStockAdjustmentDto } from './dto/query-stock-adjustment.dto';
 @Controller('stock')
 export class StockController {
   constructor(private readonly stockService: StockService) {}
+
+  @Get('summary')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary:
+      'Get complete dashboard stock & inventory summary (inventory breakdown, serialized units, product statistics, movement totals, sales & returns metrics, and stock alerts)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dashboard stock summary statistics retrieved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. startDate > endDate or invalid enum)',
+  })
+  async getSummary(@Query() query: QueryStockSummaryDto) {
+    return this.stockService.getSummary(query);
+  }
 
   @Get('movements/summary')
   @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
