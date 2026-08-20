@@ -617,19 +617,57 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto) {
-    await this.findOne(id);
+    const existing = await this.prisma.product.findUnique({
+      where: { id },
+    });
 
-    if (dto.categoryId) {
+    if (!existing) {
+      throw new NotFoundException(`Product with ID "${id}" not found`);
+    }
+
+    if (dto.name !== undefined) {
+      const trimmedName = dto.name.trim();
+      if (!trimmedName) {
+        throw new BadRequestException('Product name cannot be empty');
+      }
+
+      const duplicate = await this.prisma.product.findFirst({
+        where: {
+          id: { not: id },
+          name: { equals: trimmedName, mode: 'insensitive' },
+        },
+      });
+
+      if (duplicate) {
+        throw new BadRequestException(
+          `Product with name "${trimmedName}" already exists`,
+        );
+      }
+    }
+
+    if (dto.categoryId !== undefined) {
       const category = await this.prisma.category.findUnique({
         where: { id: dto.categoryId },
       });
 
       if (!category) {
-        throw new NotFoundException(`Category with ID "${dto.categoryId}" not found`);
+        throw new NotFoundException(
+          `Category with ID "${dto.categoryId}" not found`,
+        );
       }
     }
 
-    const { trackingType, ...updateData }: any = dto;
+    const updateData: Prisma.ProductUpdateInput = {};
+    if (dto.name !== undefined) updateData.name = dto.name.trim();
+    if (dto.brand !== undefined) updateData.brand = dto.brand;
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.image !== undefined) updateData.image = dto.image;
+    if (dto.sellingPrice !== undefined) updateData.sellingPrice = dto.sellingPrice;
+    if (dto.minimumStock !== undefined) updateData.minimumStock = dto.minimumStock;
+    if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+    if (dto.categoryId !== undefined) {
+      updateData.category = { connect: { id: dto.categoryId } };
+    }
 
     const updated = await this.prisma.product.update({
       where: { id },
@@ -645,8 +683,25 @@ export class ProductsService {
     });
 
     return {
-      ...updated,
-      sellingPrice: updated.sellingPrice ? Number(updated.sellingPrice) : 0,
+      data: {
+        id: updated.id,
+        name: updated.name,
+        brand: updated.brand,
+        description: updated.description,
+        productType: updated.productType,
+        trackingType: updated.trackingType,
+        sellingPrice: updated.sellingPrice ? Number(updated.sellingPrice) : 0,
+        minimumStock: updated.minimumStock,
+        isActive: updated.isActive,
+        category: updated.category
+          ? {
+              id: updated.category.id,
+              name: updated.category.name,
+            }
+          : null,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+      },
     };
   }
 
@@ -669,8 +724,25 @@ export class ProductsService {
 
     if (product.isActive === dto.isActive) {
       return {
-        ...product,
-        sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
+        data: {
+          id: product.id,
+          name: product.name,
+          brand: product.brand,
+          description: product.description,
+          productType: product.productType,
+          trackingType: product.trackingType,
+          sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
+          minimumStock: product.minimumStock,
+          isActive: product.isActive,
+          category: product.category
+            ? {
+                id: product.category.id,
+                name: product.category.name,
+              }
+            : null,
+          createdAt: product.createdAt.toISOString(),
+          updatedAt: product.updatedAt.toISOString(),
+        },
       };
     }
 
@@ -688,8 +760,25 @@ export class ProductsService {
     });
 
     return {
-      ...updated,
-      sellingPrice: updated.sellingPrice ? Number(updated.sellingPrice) : 0,
+      data: {
+        id: updated.id,
+        name: updated.name,
+        brand: updated.brand,
+        description: updated.description,
+        productType: updated.productType,
+        trackingType: updated.trackingType,
+        sellingPrice: updated.sellingPrice ? Number(updated.sellingPrice) : 0,
+        minimumStock: updated.minimumStock,
+        isActive: updated.isActive,
+        category: updated.category
+          ? {
+              id: updated.category.id,
+              name: updated.category.name,
+            }
+          : null,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+      },
     };
   }
 

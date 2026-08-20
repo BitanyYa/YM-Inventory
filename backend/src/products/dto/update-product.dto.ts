@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ProductType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -40,15 +41,6 @@ export class UpdateProductDto {
   categoryId?: string;
 
   @ApiPropertyOptional({
-    enum: ProductType,
-    example: ProductType.PHONE,
-    description: 'Product type enum',
-  })
-  @IsEnum(ProductType)
-  @IsOptional()
-  productType?: ProductType;
-
-  @ApiPropertyOptional({
     example: 1299.99,
     description: 'Selling price (non-negative number)',
   })
@@ -83,4 +75,12 @@ export class UpdateProductDto {
   @IsString()
   @IsOptional()
   image?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Active status of the product (true/false)',
+  })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }
