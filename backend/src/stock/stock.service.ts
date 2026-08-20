@@ -1596,14 +1596,29 @@ export class StockService {
     if (query.movementType) {
       where.movementType = query.movementType;
     }
-    if (query.fromLocation) {
-      where.fromLocation = query.fromLocation;
-    }
-    if (query.toLocation) {
-      where.toLocation = query.toLocation;
-    }
     if (query.createdById) {
       where.createdById = query.createdById;
+    }
+
+    const locationConditions: Prisma.StockMovementWhereInput[] = [];
+
+    if (query.location) {
+      locationConditions.push({
+        OR: [
+          { fromLocation: query.location },
+          { toLocation: query.location },
+        ],
+      });
+    }
+    if (query.fromLocation) {
+      locationConditions.push({ fromLocation: query.fromLocation });
+    }
+    if (query.toLocation) {
+      locationConditions.push({ toLocation: query.toLocation });
+    }
+
+    if (locationConditions.length > 0) {
+      where.AND = locationConditions;
     }
 
     const productConditions: Prisma.ProductWhereInput = {};

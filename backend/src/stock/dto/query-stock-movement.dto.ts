@@ -41,7 +41,7 @@ export class QueryStockMovementDto {
   @ApiPropertyOptional({
     enum: MovementType,
     description:
-      'Filter by Movement Type (STOCK_IN, TRANSFER, SALE, RETURN, DAMAGE, LOSS)',
+      'Filter by Movement Type (e.g. STOCK_IN, TRANSFER, SALE, RETURN, DAMAGE, LOSS)',
   })
   @IsEnum(MovementType)
   @IsOptional()
@@ -62,6 +62,14 @@ export class QueryStockMovementDto {
   @IsEnum(TrackingType)
   @IsOptional()
   trackingType?: TrackingType;
+
+  @ApiPropertyOptional({
+    enum: Location,
+    description: 'Filter by location (matches either fromLocation OR toLocation)',
+  })
+  @IsEnum(Location)
+  @IsOptional()
+  location?: Location;
 
   @ApiPropertyOptional({
     enum: Location,

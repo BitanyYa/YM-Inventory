@@ -58,7 +58,7 @@ export class StockController {
   @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
-      'Get paginated stock movement history with optional filters (page, limit, movementType, productId, productType, trackingType, fromLocation, toLocation, createdById, search, date, startDate, endDate)',
+      'Get paginated unified stock movement history with optional filters (page, limit, movementType, productId, productType, trackingType, location, fromLocation, toLocation, createdById, search, date, startDate, endDate)',
   })
   @ApiResponse({
     status: 200,
