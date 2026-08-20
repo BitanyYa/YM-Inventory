@@ -46,6 +46,7 @@ export class ProductsController {
   }
 
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated products with optional filters (page, limit, search, productType, trackingType, categoryId, isActive, stockStatus)',
@@ -64,6 +65,7 @@ export class ProductsController {
   }
 
   @Get('units')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Search ProductUnits with optional filters (imei, serialNumber, productId, location, status)',
@@ -77,6 +79,7 @@ export class ProductsController {
   }
 
   @Get('units/:unitId/history')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({ summary: 'Get complete stock movement lifecycle history of a ProductUnit by ID' })
   @ApiParam({ name: 'unitId', description: 'ProductUnit UUID' })
   @ApiResponse({
@@ -89,6 +92,7 @@ export class ProductsController {
   }
 
   @Get('units/:unitId')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({ summary: 'Get ProductUnit details by unit ID' })
   @ApiParam({ name: 'unitId', description: 'ProductUnit UUID' })
   @ApiResponse({
@@ -101,18 +105,25 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get product details by ID with current inventory quantities & unit summary' })
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary:
+      'Get complete product overview by ID including category, inventory breakdown, dynamic stockStatus, unitSummary, serialized units, and stock movementSummary counts',
+  })
   @ApiParam({ name: 'id', description: 'Product UUID' })
   @ApiResponse({
     status: 200,
-    description: 'Product details with category, inventory, and unit summary',
+    description:
+      'Product details with category, current inventory quantities, unit summary, serialized units, and movement summary counts',
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   async findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
   }
 
   @Get(':id/units')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Get all ProductUnits for a SERIALIZED product ordered by creation date',
   })

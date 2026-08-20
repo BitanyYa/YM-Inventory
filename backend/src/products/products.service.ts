@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Location, Prisma, TrackingType, UnitStatus } from '@prisma/client';
+import { Location, MovementType, Prisma, TrackingType, UnitStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -266,8 +266,18 @@ export class ProductsService {
         productUnits: {
           select: {
             id: true,
+            imei: true,
+            serialNumber: true,
+            storage: true,
+            color: true,
+            purchasePrice: true,
             location: true,
             status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
           },
         },
       },
@@ -275,6 +285,45 @@ export class ProductsService {
 
     if (!product) {
       throw new NotFoundException(`Product with ID "${id}" not found`);
+    }
+
+    const movementCounts = await this.prisma.stockMovement.groupBy({
+      by: ['movementType'],
+      where: { productId: id },
+      _count: { id: true },
+    });
+
+    const movementSummary = {
+      stockIn: 0,
+      transfers: 0,
+      sales: 0,
+      returns: 0,
+      damages: 0,
+      losses: 0,
+    };
+
+    for (const group of movementCounts) {
+      const count = group._count.id;
+      switch (group.movementType) {
+        case MovementType.STOCK_IN:
+          movementSummary.stockIn = count;
+          break;
+        case MovementType.TRANSFER:
+          movementSummary.transfers = count;
+          break;
+        case MovementType.SALE:
+          movementSummary.sales = count;
+          break;
+        case MovementType.RETURN:
+          movementSummary.returns = count;
+          break;
+        case MovementType.DAMAGE:
+          movementSummary.damages = count;
+          break;
+        case MovementType.LOSS:
+          movementSummary.losses = count;
+          break;
+      }
     }
 
     const warehouseRecord = product.inventory.find(
@@ -288,21 +337,6 @@ export class ProductsService {
     const shopQuantity = shopRecord ? shopRecord.quantity : 0;
     const totalQuantity = warehouseQuantity + shopQuantity;
 
-    let warehouseAvailable = 0;
-    let shopAvailable = 0;
-
-    if (product.trackingType === TrackingType.SERIALIZED) {
-      for (const u of product.productUnits || []) {
-        if (u.location === Location.WAREHOUSE && u.status === UnitStatus.AVAILABLE) {
-          warehouseAvailable++;
-        } else if (u.location === Location.SHOP && u.status === UnitStatus.IN_SHOP) {
-          shopAvailable++;
-        }
-      }
-    }
-
-    const availableUnits = warehouseAvailable + shopAvailable;
-
     let stockStatus: StockStatusFilter;
     if (totalQuantity === 0) {
       stockStatus = StockStatusFilter.OUT_OF_STOCK;
@@ -312,36 +346,83 @@ export class ProductsService {
       stockStatus = StockStatusFilter.IN_STOCK;
     }
 
-    return {
+    let unitSummary: {
+      totalAvailable: number;
+      warehouseAvailable: number;
+      shopAvailable: number;
+    } | null = null;
+
+    let units: any[] = [];
+
+    if (product.trackingType === TrackingType.SERIALIZED) {
+      let warehouseAvailable = 0;
+      let shopAvailable = 0;
+
+      units = (product.productUnits || []).map((u) => {
+        if (
+          u.location === Location.WAREHOUSE &&
+          u.status === UnitStatus.AVAILABLE
+        ) {
+          warehouseAvailable++;
+        } else if (
+          u.location === Location.SHOP &&
+          u.status === UnitStatus.IN_SHOP
+        ) {
+          shopAvailable++;
+        }
+
+        return {
+          id: u.id,
+          imei: u.imei,
+          serialNumber: u.serialNumber,
+          storage: u.storage,
+          color: u.color,
+          purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+          location: u.location,
+          status: u.status,
+          createdAt: u.createdAt.toISOString(),
+          updatedAt: u.updatedAt.toISOString(),
+        };
+      });
+
+      unitSummary = {
+        totalAvailable: warehouseAvailable + shopAvailable,
+        warehouseAvailable,
+        shopAvailable,
+      };
+    }
+
+    const productDetails = {
       id: product.id,
       name: product.name,
       brand: product.brand,
+      description: product.description,
       productType: product.productType,
       trackingType: product.trackingType,
       sellingPrice: product.sellingPrice ? Number(product.sellingPrice) : 0,
       minimumStock: product.minimumStock,
       isActive: product.isActive,
-      description: product.description,
-      image: product.image,
       category: product.category
         ? {
             id: product.category.id,
             name: product.category.name,
           }
         : null,
-      createdAt: product.createdAt.toISOString(),
-      updatedAt: product.updatedAt.toISOString(),
       inventory: {
         warehouseQuantity,
         shopQuantity,
         totalQuantity,
       },
       stockStatus,
-      unitSummary: {
-        availableUnits,
-        warehouseAvailable,
-        shopAvailable,
-      },
+      unitSummary,
+      units,
+      movementSummary,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
+    };
+
+    return {
+      data: productDetails,
     };
   }
 
