@@ -110,7 +110,7 @@ export class StockController {
   @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
-      'Get paginated sales transaction history with optional filters (page, limit, productId, productType, trackingType, search, date, startDate, endDate)',
+      'Get paginated sales transaction history with optional filters (page, limit, productId, productType, trackingType, location, createdById, search, date, startDate, endDate)',
   })
   @ApiResponse({
     status: 200,

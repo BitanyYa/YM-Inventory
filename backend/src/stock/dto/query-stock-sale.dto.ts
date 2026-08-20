@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ProductType, TrackingType } from '@prisma/client';
+import { Location, ProductType, TrackingType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
@@ -53,6 +53,14 @@ export class QueryStockSaleDto {
   @IsEnum(TrackingType)
   @IsOptional()
   trackingType?: TrackingType;
+
+  @ApiPropertyOptional({
+    enum: Location,
+    description: 'Filter sales by selling location (WAREHOUSE, SHOP)',
+  })
+  @IsEnum(Location)
+  @IsOptional()
+  location?: Location;
 
   @ApiPropertyOptional({ description: 'Filter sales created by User ID' })
   @IsString()

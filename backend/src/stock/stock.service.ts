@@ -2222,6 +2222,12 @@ export class StockService {
     if (query.createdById) {
       where.createdById = query.createdById;
     }
+    if (query.location) {
+      where.OR = [
+        { fromLocation: query.location },
+        { toLocation: query.location },
+      ];
+    }
 
     const productConditions: Prisma.ProductWhereInput = {};
     if (query.productType) {
@@ -2286,6 +2292,8 @@ export class StockService {
                   id: true,
                   imei: true,
                   serialNumber: true,
+                  storage: true,
+                  color: true,
                   purchasePrice: true,
                   location: true,
                   status: true,
@@ -2308,6 +2316,8 @@ export class StockService {
         id: mu.productUnit.id,
         imei: mu.productUnit.imei,
         serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
         purchasePrice: mu.productUnit.purchasePrice
           ? Number(mu.productUnit.purchasePrice)
           : null,
