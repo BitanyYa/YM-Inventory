@@ -45,6 +45,14 @@ export class QueryInventoryDto {
   })
   @IsEnum(InventoryStockStatus)
   @IsOptional()
+  stockStatus?: InventoryStockStatus;
+
+  @ApiPropertyOptional({
+    enum: InventoryStockStatus,
+    description: 'Filter by Stock Status (alias for stockStatus)',
+  })
+  @IsEnum(InventoryStockStatus)
+  @IsOptional()
   status?: InventoryStockStatus;
 
   @ApiPropertyOptional({ description: 'Filter by Product ID' })
@@ -100,4 +108,16 @@ export class QueryInventoryDto {
   })
   @IsBoolean()
   lowStock?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Filter active/inactive products (default true)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean()
+  isActive?: boolean;
 }

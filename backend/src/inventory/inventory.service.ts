@@ -98,8 +98,10 @@ export class InventoryService {
   }
 
   async findInventory(query: QueryInventoryDto) {
+    const activeFilter = query.isActive !== undefined ? query.isActive : true;
+
     const productWhere: Prisma.ProductWhereInput = {
-      isActive: true,
+      isActive: activeFilter,
     };
 
     if (query.productId) {
@@ -122,57 +124,152 @@ export class InventoryService {
       ];
     }
 
-    const items = await this.getProcessedInventoryItems(productWhere);
+    const products = await this.prisma.product.findMany({
+      where: productWhere,
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        inventory: true,
+        productUnits: {
+          where: {
+            OR: [
+              {
+                location: Location.WAREHOUSE,
+                status: UnitStatus.AVAILABLE,
+              },
+              {
+                location: Location.SHOP,
+                status: UnitStatus.IN_SHOP,
+              },
+            ],
+          },
+          select: {
+            id: true,
+            location: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const targetStatus = query.stockStatus || query.status;
 
     const results: any[] = [];
 
-    for (const item of items) {
+    for (const product of products) {
+      const warehouseRecord = product.inventory.find(
+        (i) => i.location === Location.WAREHOUSE,
+      );
+      const shopRecord = product.inventory.find(
+        (i) => i.location === Location.SHOP,
+      );
+
+      const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+      const shopQuantity = shopRecord ? shopRecord.quantity : 0;
+      const totalQuantity = warehouseQuantity + shopQuantity;
+
+      let stockStatus: InventoryStockStatus;
+      if (totalQuantity === 0) {
+        stockStatus = InventoryStockStatus.OUT_OF_STOCK;
+      } else if (totalQuantity <= product.minimumStock) {
+        stockStatus = InventoryStockStatus.LOW_STOCK;
+      } else {
+        stockStatus = InventoryStockStatus.IN_STOCK;
+      }
+
       // Location filter evaluation
       if (query.location) {
         if (
           query.location === Location.WAREHOUSE &&
-          item.warehouseQuantity <= 0
+          warehouseQuantity <= 0
         ) {
           continue;
         }
-        if (query.location === Location.SHOP && item.shopQuantity <= 0) {
+        if (query.location === Location.SHOP && shopQuantity <= 0) {
           continue;
         }
       }
 
       // Stock status filter evaluation
-      if (query.status) {
-        if (item.stockStatus !== query.status) {
-          continue;
-        }
+      if (targetStatus && stockStatus !== targetStatus) {
+        continue;
       }
 
       // Legacy lowStock boolean filter evaluation
       if (query.lowStock !== undefined) {
-        if (query.lowStock === true && !item.isLowStock) {
+        const isLowStock = totalQuantity <= product.minimumStock;
+        if (query.lowStock === true && !isLowStock) {
           continue;
         }
-        if (query.lowStock === false && item.isLowStock) {
+        if (query.lowStock === false && isLowStock) {
           continue;
         }
       }
 
-      // Filter product units based on location if specified
-      let units = item.rawUnits;
-      if (query.location) {
-        units = units.filter((unit) => unit.location === query.location);
+      let unitSummary: {
+        totalAvailable: number;
+        warehouseAvailable: number;
+        shopAvailable: number;
+      } | null = null;
+
+      if (product.trackingType === TrackingType.SERIALIZED) {
+        let warehouseAvailable = 0;
+        let shopAvailable = 0;
+
+        for (const u of product.productUnits || []) {
+          if (
+            u.location === Location.WAREHOUSE &&
+            u.status === UnitStatus.AVAILABLE
+          ) {
+            warehouseAvailable++;
+          } else if (
+            u.location === Location.SHOP &&
+            u.status === UnitStatus.IN_SHOP
+          ) {
+            shopAvailable++;
+          }
+        }
+
+        unitSummary = {
+          totalAvailable: warehouseAvailable + shopAvailable,
+          warehouseAvailable,
+          shopAvailable,
+        };
       }
 
       results.push({
-        product: item.product,
-        warehouseQuantity: item.warehouseQuantity,
-        shopQuantity: item.shopQuantity,
-        totalQuantity: item.totalQuantity,
-        minimumStock: item.minimumStock,
-        isLowStock: item.isLowStock,
-        isOutOfStock: item.isOutOfStock,
-        stockStatus: item.stockStatus,
-        units: item.trackingType === TrackingType.SERIALIZED ? units : [],
+        product: {
+          id: product.id,
+          name: product.name,
+          brand: product.brand,
+          productType: product.productType,
+          trackingType: product.trackingType,
+          sellingPrice: product.sellingPrice
+            ? Number(product.sellingPrice)
+            : 0,
+          minimumStock: product.minimumStock,
+          isActive: product.isActive,
+          category: product.category
+            ? {
+                id: product.category.id,
+                name: product.category.name,
+              }
+            : null,
+        },
+        inventory: {
+          warehouseQuantity,
+          shopQuantity,
+          totalQuantity,
+        },
+        unitSummary,
+        stockStatus,
       });
     }
 
@@ -802,18 +899,23 @@ export class InventoryService {
 
     if (!product.isActive) {
       throw new BadRequestException(
-        `Product "${product.name}" is inactive/soft-deleted and cannot be adjusted`,
+        `Product "${product.name}" is soft-deleted/inactive and cannot have inventory adjustments`,
       );
     }
 
     if (product.trackingType === TrackingType.SERIALIZED) {
       throw new BadRequestException(
-        'Serialized inventory cannot be adjusted via quantity adjustment. Adjust individual product units instead.',
+        'Inventory adjustment endpoint is only for QUANTITY-tracked products. For SERIALIZED products, use damage/loss or stock movement endpoints.',
       );
     }
 
+    const targetQuantity = dto.newQuantity !== undefined ? dto.newQuantity : (dto as any).targetQuantity;
+    if (targetQuantity < 0) {
+      throw new BadRequestException('newQuantity cannot be negative');
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      const inventory = await tx.inventory.findUnique({
+      const existingInventory = await tx.inventory.findUnique({
         where: {
           productId_location: {
             productId: product.id,
@@ -822,54 +924,63 @@ export class InventoryService {
         },
       });
 
-      const currentQuantity = inventory ? inventory.quantity : 0;
-      const adjustment = dto.newQuantity - currentQuantity;
+      const currentQuantity = existingInventory ? existingInventory.quantity : 0;
+      const difference = targetQuantity - currentQuantity;
 
-      if (adjustment === 0) {
-        throw new BadRequestException('No inventory adjustment is required');
+      if (difference === 0) {
+        throw new BadRequestException(
+          `Inventory for product "${product.name}" at ${dto.location} is already at quantity ${targetQuantity}`,
+        );
       }
 
-      if (inventory) {
-        await tx.inventory.update({
-          where: { id: inventory.id },
-          data: {
-            quantity: dto.newQuantity,
-          },
+      let updatedInventory;
+      if (existingInventory) {
+        updatedInventory = await tx.inventory.update({
+          where: { id: existingInventory.id },
+          data: { quantity: targetQuantity },
         });
-      } else if (dto.newQuantity > 0) {
-        await tx.inventory.create({
+      } else {
+        updatedInventory = await tx.inventory.create({
           data: {
             productId: product.id,
             location: dto.location,
-            quantity: dto.newQuantity,
+            quantity: targetQuantity,
           },
         });
       }
 
-      const defaultNote = 'Inventory adjustment: physical count correction';
-      const note = dto.note ? `${defaultNote} - ${dto.note}` : defaultNote;
+      let movementType: MovementType;
+      if (difference > 0) {
+        movementType = MovementType.STOCK_IN;
+      } else {
+        movementType = MovementType.DAMAGE;
+      }
+
+      const noteText = dto.note
+        ? `Inventory Adjustment: ${dto.note}`
+        : `Inventory Adjustment from ${currentQuantity} to ${targetQuantity}`;
 
       const movement = await tx.stockMovement.create({
         data: {
           productId: product.id,
-          movementType: adjustment > 0 ? MovementType.STOCK_IN : MovementType.LOSS,
-          quantity: Math.abs(adjustment),
-          fromLocation: adjustment < 0 ? dto.location : null,
-          toLocation: adjustment > 0 ? dto.location : null,
+          movementType,
+          quantity: Math.abs(difference),
+          fromLocation: difference < 0 ? dto.location : null,
+          toLocation: difference > 0 ? dto.location : null,
           createdById: userId,
-          note,
+          note: noteText,
         },
       });
 
       return {
+        message: 'Inventory quantity adjusted successfully',
         productId: product.id,
         location: dto.location,
         previousQuantity: currentQuantity,
-        newQuantity: dto.newQuantity,
-        adjustment,
-        movementId: movement.id,
-        movementType: movement.movementType,
-        note,
+        newQuantity: targetQuantity,
+        difference,
+        movement,
+        inventory: updatedInventory,
       };
     });
   }

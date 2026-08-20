@@ -26,6 +26,7 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Get('summary')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({ summary: 'Get current inventory summary statistics' })
   @ApiResponse({
     status: 200,
@@ -37,6 +38,7 @@ export class InventoryController {
   }
 
   @Get('low-stock')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({ summary: 'Get low-stock products (at or below minimum stock)' })
   @ApiResponse({
     status: 200,
@@ -47,6 +49,7 @@ export class InventoryController {
   }
 
   @Get('alerts/stock')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get low stock & out-of-stock reorder report (supports status filter, search, productType, trackingType, location, categoryId, page, limit)',
@@ -85,6 +88,7 @@ export class InventoryController {
   }
 
   @Get('products/:productId/movements')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated stock movement history for ONE specific product by ID (supports movementType, fromLocation, toLocation, date, startDate, endDate)',
@@ -103,6 +107,7 @@ export class InventoryController {
   }
 
   @Get('products/:productId')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get complete current stock state, unit summary, and active serialized units for ONE product by ID',
@@ -118,9 +123,10 @@ export class InventoryController {
   }
 
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
-      'Get paginated & filterable inventory list (supports page, limit, status, search, productType, trackingType, location, productId)',
+      'Get paginated & filterable inventory list (supports page, limit, stockStatus, search, productType, trackingType, location, productId, categoryId, isActive)',
   })
   @ApiResponse({
     status: 200,
