@@ -9,6 +9,7 @@ import { QueryLowStockDto } from './dto/query-low-stock.dto';
 import { QueryProductMovementDto } from './dto/query-product-movement.dto';
 import { InventoryAlertStatus, QueryStockAlertDto } from './dto/query-stock-alert.dto';
 import { AdjustInventoryDto } from './dto/adjust-inventory.dto';
+import { AlertTypeFilter, QueryInventoryAlertDto } from './dto/query-inventory-alert.dto';
 
 @Injectable()
 export class InventoryService {
@@ -983,5 +984,220 @@ export class InventoryService {
         inventory: updatedInventory,
       };
     });
+  }
+
+  async getInventoryAlerts(query: QueryInventoryAlertDto) {
+    if (query.alertType === AlertTypeFilter.IN_STOCK) {
+      throw new BadRequestException(
+        'alertType cannot be IN_STOCK for stock alerts',
+      );
+    }
+
+    const productWhere: Prisma.ProductWhereInput = {
+      isActive: true, // Only active products
+    };
+
+    if (query.productId) {
+      productWhere.id = query.productId;
+    }
+    if (query.categoryId) {
+      productWhere.categoryId = query.categoryId;
+    }
+    if (query.productType) {
+      productWhere.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productWhere.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productWhere.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: productWhere,
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        inventory: true,
+        productUnits: {
+          where: {
+            OR: [
+              {
+                location: Location.WAREHOUSE,
+                status: UnitStatus.AVAILABLE,
+              },
+              {
+                location: Location.SHOP,
+                status: UnitStatus.IN_SHOP,
+              },
+            ],
+          },
+          select: {
+            id: true,
+            location: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+
+    const alerts: any[] = [];
+
+    for (const product of products) {
+      const warehouseRecord = product.inventory.find(
+        (i) => i.location === Location.WAREHOUSE,
+      );
+      const shopRecord = product.inventory.find(
+        (i) => i.location === Location.SHOP,
+      );
+
+      let warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+      let shopQuantity = shopRecord ? shopRecord.quantity : 0;
+
+      if (query.location === Location.WAREHOUSE) {
+        shopQuantity = 0;
+      } else if (query.location === Location.SHOP) {
+        warehouseQuantity = 0;
+      }
+
+      const totalQuantity = warehouseQuantity + shopQuantity;
+      const minimumStock = product.minimumStock;
+
+      let stockStatus: InventoryStockStatus;
+      let shortage = 0;
+
+      if (totalQuantity === 0) {
+        stockStatus = InventoryStockStatus.OUT_OF_STOCK;
+        shortage = minimumStock;
+      } else if (totalQuantity <= minimumStock) {
+        stockStatus = InventoryStockStatus.LOW_STOCK;
+        shortage = Math.max(0, minimumStock - totalQuantity);
+      } else {
+        // IN_STOCK product - not an alert
+        continue;
+      }
+
+      // Filter by alertType if specified
+      if (query.alertType) {
+        if (
+          query.alertType === AlertTypeFilter.LOW_STOCK &&
+          stockStatus !== InventoryStockStatus.LOW_STOCK
+        ) {
+          continue;
+        }
+        if (
+          query.alertType === AlertTypeFilter.OUT_OF_STOCK &&
+          stockStatus !== InventoryStockStatus.OUT_OF_STOCK
+        ) {
+          continue;
+        }
+      }
+
+      let unitSummary: {
+        totalAvailable: number;
+        warehouseAvailable: number;
+        shopAvailable: number;
+      } | null = null;
+
+      if (product.trackingType === TrackingType.SERIALIZED) {
+        let warehouseAvailable = 0;
+        let shopAvailable = 0;
+
+        for (const u of product.productUnits || []) {
+          if (
+            u.location === Location.WAREHOUSE &&
+            u.status === UnitStatus.AVAILABLE &&
+            (query.location === undefined || query.location === Location.WAREHOUSE)
+          ) {
+            warehouseAvailable++;
+          } else if (
+            u.location === Location.SHOP &&
+            u.status === UnitStatus.IN_SHOP &&
+            (query.location === undefined || query.location === Location.SHOP)
+          ) {
+            shopAvailable++;
+          }
+        }
+
+        unitSummary = {
+          totalAvailable: warehouseAvailable + shopAvailable,
+          warehouseAvailable,
+          shopAvailable,
+        };
+      }
+
+      alerts.push({
+        product: {
+          id: product.id,
+          name: product.name,
+          brand: product.brand,
+          productType: product.productType,
+          trackingType: product.trackingType,
+          sellingPrice: product.sellingPrice
+            ? Number(product.sellingPrice)
+            : 0,
+          minimumStock: product.minimumStock,
+          isActive: product.isActive,
+          category: product.category
+            ? {
+                id: product.category.id,
+                name: product.category.name,
+              }
+            : null,
+        },
+        inventory: {
+          warehouseQuantity,
+          shopQuantity,
+          totalQuantity,
+        },
+        unitSummary,
+        stockStatus,
+        shortage,
+      });
+    }
+
+    // Urgency sorting: OUT_OF_STOCK first, then LOW_STOCK. Within same status, highest shortage first, then name ASC.
+    alerts.sort((a, b) => {
+      if (a.stockStatus !== b.stockStatus) {
+        return a.stockStatus === InventoryStockStatus.OUT_OF_STOCK ? -1 : 1;
+      }
+      if (a.shortage !== b.shortage) {
+        return b.shortage - a.shortage;
+      }
+      return a.product.name.localeCompare(b.product.name);
+    });
+
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+
+    const total = alerts.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    const startIndex = (page - 1) * limit;
+    const data = alerts.slice(startIndex, startIndex + limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   }
 }

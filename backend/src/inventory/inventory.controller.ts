@@ -17,6 +17,7 @@ import { QueryLowStockDto } from './dto/query-low-stock.dto';
 import { QueryProductMovementDto } from './dto/query-product-movement.dto';
 import { QueryStockAlertDto } from './dto/query-stock-alert.dto';
 import { AdjustInventoryDto } from './dto/adjust-inventory.dto';
+import { QueryInventoryAlertDto } from './dto/query-inventory-alert.dto';
 
 @ApiTags('inventory')
 @ApiBearerAuth()
@@ -46,6 +47,24 @@ export class InventoryController {
   })
   async getLowStock(@Query() query: QueryLowStockDto) {
     return this.inventoryService.getLowStock(query);
+  }
+
+  @Get('alerts')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary:
+      'Get products currently LOW_STOCK or OUT_OF_STOCK sorted by urgency with calculated shortage (supports alertType, page, limit, productId, categoryId, productType, trackingType, location, search)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated stock alerts retrieved successfully sorted by urgency with metadata',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. alertType=IN_STOCK or invalid query parameter format)',
+  })
+  async getInventoryAlerts(@Query() query: QueryInventoryAlertDto) {
+    return this.inventoryService.getInventoryAlerts(query);
   }
 
   @Get('alerts/stock')
