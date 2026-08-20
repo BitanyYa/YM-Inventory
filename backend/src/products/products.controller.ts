@@ -46,8 +46,19 @@ export class ProductsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get products with optional filters (categoryId, productType, trackingType)' })
-  @ApiResponse({ status: 200, description: 'List of products ordered by newest first' })
+  @ApiOperation({
+    summary:
+      'Get paginated products with optional filters (page, limit, search, productType, trackingType, categoryId, isActive, stockStatus)',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Paginated list of products ordered newest first with current inventory breakdown and calculated stockStatus',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. page < 1, limit < 1, limit > 100, or invalid enum filter)',
+  })
   async findAll(@Query() query: QueryProductDto) {
     return this.productsService.findAll(query);
   }

@@ -19,6 +19,7 @@ import { QueryStockReturnDto } from './dto/query-stock-return.dto';
 import { QueryMovementSummaryDto } from './dto/query-movement-summary.dto';
 import { DamageStockDto } from './dto/damage-stock.dto';
 import { LossStockDto } from './dto/loss-stock.dto';
+import { QueryStockInDto } from './dto/query-stock-in.dto';
 
 @Injectable()
 export class StockService {
@@ -118,7 +119,6 @@ export class StockService {
 
         quantityReceived = dto.units.length;
 
-        // Check for duplicate IMEIs in the incoming payload
         const imeiSet = new Set<string>();
         for (const unit of dto.units) {
           if (!unit.imei) {
@@ -137,7 +137,6 @@ export class StockService {
           imeiSet.add(unit.imei);
         }
 
-        // Check for existing IMEIs in the database
         for (const unit of dto.units) {
           const existingUnit = await tx.productUnit.findUnique({
             where: { imei: unit.imei },
@@ -2525,6 +2524,189 @@ export class StockService {
           role: r.createdBy.role,
         },
         units: r.product.trackingType === TrackingType.SERIALIZED ? units : [],
+      };
+    });
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  async findStockIns(query: QueryStockInDto) {
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const where: Prisma.StockMovementWhereInput = {
+      movementType: MovementType.STOCK_IN,
+    };
+
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+    if (query.location) {
+      where.toLocation = query.location;
+    }
+    if (query.createdById) {
+      where.createdById = query.createdById;
+    }
+
+    const productConditions: Prisma.ProductWhereInput = {};
+    if (query.productType) {
+      productConditions.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productConditions.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productConditions.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    if (Object.keys(productConditions).length > 0) {
+      where.product = productConditions;
+    }
+
+    if (parsedStart || parsedEnd) {
+      where.createdAt = {};
+      if (parsedStart) {
+        where.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        where.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const [rawStockIns, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              productType: true,
+              trackingType: true,
+              sellingPrice: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          movementUnits: {
+            include: {
+              productUnit: {
+                select: {
+                  id: true,
+                  imei: true,
+                  serialNumber: true,
+                  storage: true,
+                  color: true,
+                  purchasePrice: true,
+                  location: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    const data = rawStockIns.map((s) => {
+      const sellingPriceNum = s.product.sellingPrice
+        ? Number(s.product.sellingPrice)
+        : 0;
+
+      const units = s.movementUnits.map((mu) => ({
+        id: mu.productUnit.id,
+        imei: mu.productUnit.imei,
+        serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
+        purchasePrice: mu.productUnit.purchasePrice
+          ? Number(mu.productUnit.purchasePrice)
+          : null,
+        location: mu.productUnit.location,
+        status: mu.productUnit.status,
+      }));
+
+      return {
+        id: s.id,
+        movementType: s.movementType,
+        quantity: s.quantity,
+        fromLocation: s.fromLocation,
+        toLocation: s.toLocation,
+        costPrice: s.costPrice ? Number(s.costPrice) : null,
+        note: s.note,
+        createdById: s.createdById,
+        createdAt: s.createdAt.toISOString(),
+        product: {
+          id: s.product.id,
+          name: s.product.name,
+          brand: s.product.brand,
+          productType: s.product.productType,
+          trackingType: s.product.trackingType,
+          sellingPrice: sellingPriceNum,
+        },
+        createdBy: {
+          id: s.createdBy.id,
+          name: s.createdBy.name,
+          email: s.createdBy.email,
+          role: s.createdBy.role,
+        },
+        units: s.product.trackingType === TrackingType.SERIALIZED ? units : [],
       };
     });
 

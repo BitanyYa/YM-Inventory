@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto';
-import { QueryProductDto } from './dto/query-product.dto';
+import { QueryProductDto, StockStatusFilter } from './dto/query-product.dto';
 import { QueryProductUnitDto } from './dto/query-product-unit.dto';
 
 @Injectable()
@@ -44,6 +44,13 @@ export class ProductsService {
   }
 
   async findAll(query: QueryProductDto) {
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
     const where: Prisma.ProductWhereInput = {};
 
     if (query.categoryId) {
@@ -57,24 +64,134 @@ export class ProductsService {
     }
     if (query.isActive !== undefined) {
       where.isActive = query.isActive;
-    } else {
-      where.isActive = true;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      where.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
     }
 
-    const products = await this.prisma.product.findMany({
-      where,
-      include: {
-        category: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const mapProduct = (p: any) => {
+      const warehouseRecord = (p.inventory || []).find(
+        (i: any) => i.location === Location.WAREHOUSE,
+      );
+      const shopRecord = (p.inventory || []).find(
+        (i: any) => i.location === Location.SHOP,
+      );
 
-    return products.map((p) => ({
-      ...p,
-      sellingPrice: p.sellingPrice ? Number(p.sellingPrice) : 0,
-    }));
+      const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+      const shopQuantity = shopRecord ? shopRecord.quantity : 0;
+      const totalQuantity = warehouseQuantity + shopQuantity;
+
+      let stockStatus: StockStatusFilter;
+      if (totalQuantity === 0) {
+        stockStatus = StockStatusFilter.OUT_OF_STOCK;
+      } else if (totalQuantity <= p.minimumStock) {
+        stockStatus = StockStatusFilter.LOW_STOCK;
+      } else {
+        stockStatus = StockStatusFilter.IN_STOCK;
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        productType: p.productType,
+        trackingType: p.trackingType,
+        sellingPrice: p.sellingPrice ? Number(p.sellingPrice) : 0,
+        minimumStock: p.minimumStock,
+        isActive: p.isActive,
+        description: p.description,
+        image: p.image,
+        category: p.category
+          ? {
+              id: p.category.id,
+              name: p.category.name,
+            }
+          : null,
+        createdAt: p.createdAt ? p.createdAt.toISOString() : null,
+        updatedAt: p.updatedAt ? p.updatedAt.toISOString() : null,
+        inventory: {
+          warehouseQuantity,
+          shopQuantity,
+          totalQuantity,
+        },
+        stockStatus,
+      };
+    };
+
+    if (query.stockStatus) {
+      const allMatchingProducts = await this.prisma.product.findMany({
+        where,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          inventory: true,
+        },
+      });
+
+      const mapped = allMatchingProducts.map(mapProduct);
+      const filtered = mapped.filter(
+        (p) => p.stockStatus === query.stockStatus,
+      );
+
+      const total = filtered.length;
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+      const data = filtered.slice(skip, skip + limit);
+
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+      };
+    } else {
+      const [rawProducts, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            inventory: true,
+          },
+        }),
+        this.prisma.product.count({ where }),
+      ]);
+
+      const data = rawProducts.map(mapProduct);
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+      };
+    }
   }
 
   async findAllUnits(query: QueryProductUnitDto) {
@@ -186,6 +303,15 @@ export class ProductsService {
 
     const availableUnits = warehouseAvailable + shopAvailable;
 
+    let stockStatus: StockStatusFilter;
+    if (totalQuantity === 0) {
+      stockStatus = StockStatusFilter.OUT_OF_STOCK;
+    } else if (totalQuantity <= product.minimumStock) {
+      stockStatus = StockStatusFilter.LOW_STOCK;
+    } else {
+      stockStatus = StockStatusFilter.IN_STOCK;
+    }
+
     return {
       id: product.id,
       name: product.name,
@@ -210,6 +336,7 @@ export class ProductsService {
         shopQuantity,
         totalQuantity,
       },
+      stockStatus,
       unitSummary: {
         availableUnits,
         warehouseAvailable,
