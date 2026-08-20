@@ -20,6 +20,7 @@ import { QueryMovementSummaryDto } from './dto/query-movement-summary.dto';
 import { DamageStockDto } from './dto/damage-stock.dto';
 import { LossStockDto } from './dto/loss-stock.dto';
 import { QueryStockInDto } from './dto/query-stock-in.dto';
+import { QueryStockDamageDto } from './dto/query-stock-damage.dto';
 
 @Injectable()
 export class StockService {
@@ -2749,6 +2750,194 @@ export class StockService {
           role: s.createdBy.role,
         },
         units: s.product.trackingType === TrackingType.SERIALIZED ? units : [],
+      };
+    });
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  async findDamages(query: QueryStockDamageDto) {
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
+
+    const effectiveStart = query.startDate || query.date;
+    const effectiveEnd = query.endDate || query.date;
+
+    let parsedStart: Date | null = null;
+    if (effectiveStart) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveStart.trim())) {
+        parsedStart = new Date(`${effectiveStart.trim()}T00:00:00.000Z`);
+      } else {
+        parsedStart = new Date(effectiveStart);
+      }
+    }
+
+    let parsedEnd: Date | null = null;
+    if (effectiveEnd) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveEnd.trim())) {
+        parsedEnd = new Date(`${effectiveEnd.trim()}T23:59:59.999Z`);
+      } else {
+        parsedEnd = new Date(effectiveEnd);
+      }
+    }
+
+    if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    const where: Prisma.StockMovementWhereInput = {
+      movementType: {
+        in: [MovementType.DAMAGE, MovementType.LOSS],
+      },
+    };
+
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+    if (query.createdById) {
+      where.createdById = query.createdById;
+    }
+    if (query.location) {
+      where.OR = [
+        { fromLocation: query.location },
+        { toLocation: query.location },
+      ];
+    }
+
+    const productConditions: Prisma.ProductWhereInput = {};
+    if (query.productType) {
+      productConditions.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productConditions.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productConditions.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    if (Object.keys(productConditions).length > 0) {
+      where.product = productConditions;
+    }
+
+    if (parsedStart || parsedEnd) {
+      where.createdAt = {};
+      if (parsedStart) {
+        where.createdAt.gte = parsedStart;
+      }
+      if (parsedEnd) {
+        where.createdAt.lte = parsedEnd;
+      }
+    }
+
+    const [rawDamages, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              brand: true,
+              productType: true,
+              trackingType: true,
+              sellingPrice: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+            },
+          },
+          movementUnits: {
+            include: {
+              productUnit: {
+                select: {
+                  id: true,
+                  imei: true,
+                  serialNumber: true,
+                  storage: true,
+                  color: true,
+                  purchasePrice: true,
+                  location: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    const data = rawDamages.map((d) => {
+      const sellingPriceNum = d.product.sellingPrice
+        ? Number(d.product.sellingPrice)
+        : 0;
+
+      const units = d.movementUnits.map((mu) => ({
+        id: mu.productUnit.id,
+        imei: mu.productUnit.imei,
+        serialNumber: mu.productUnit.serialNumber,
+        storage: mu.productUnit.storage,
+        color: mu.productUnit.color,
+        purchasePrice: mu.productUnit.purchasePrice
+          ? Number(mu.productUnit.purchasePrice)
+          : null,
+        location: mu.productUnit.location,
+        status: mu.productUnit.status,
+      }));
+
+      return {
+        id: d.id,
+        movementType: d.movementType,
+        quantity: d.quantity,
+        fromLocation: d.fromLocation,
+        toLocation: d.toLocation,
+        costPrice: d.costPrice ? Number(d.costPrice) : null,
+        note: d.note,
+        createdById: d.createdById,
+        createdAt: d.createdAt.toISOString(),
+        product: {
+          id: d.product.id,
+          name: d.product.name,
+          brand: d.product.brand,
+          productType: d.product.productType,
+          trackingType: d.product.trackingType,
+          sellingPrice: sellingPriceNum,
+        },
+        createdBy: {
+          id: d.createdBy.id,
+          name: d.createdBy.name,
+          email: d.createdBy.email,
+          role: d.createdBy.role,
+        },
+        units: d.product.trackingType === TrackingType.SERIALIZED ? units : [],
       };
     });
 
