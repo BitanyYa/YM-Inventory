@@ -74,7 +74,7 @@ export class StockController {
   @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
-      'Get paginated stock transfer history with optional filters (page, limit, productId, fromLocation, toLocation, date, startDate, endDate)',
+      'Get paginated stock transfer history with optional filters (page, limit, productId, productType, trackingType, createdById, search, fromLocation, toLocation, date, startDate, endDate)',
   })
   @ApiResponse({
     status: 200,
@@ -82,7 +82,7 @@ export class StockController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation error (e.g. page < 1, limit < 1, or limit > 100 or startDate > endDate)',
+    description: 'Validation error (e.g. page < 1, limit < 1, limit > 100, or startDate > endDate)',
   })
   async getTransfers(@Query() query: QueryStockTransferDto) {
     return this.stockService.findTransfers(query);

@@ -1898,6 +1898,29 @@ export class StockService {
     if (query.toLocation) {
       where.toLocation = query.toLocation;
     }
+    if (query.createdById) {
+      where.createdById = query.createdById;
+    }
+
+    const productConditions: Prisma.ProductWhereInput = {};
+    if (query.productType) {
+      productConditions.productType = query.productType;
+    }
+    if (query.trackingType) {
+      productConditions.trackingType = query.trackingType;
+    }
+    if (query.search && query.search.trim()) {
+      const searchTerm = query.search.trim();
+      productConditions.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { brand: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
+    if (Object.keys(productConditions).length > 0) {
+      where.product = productConditions;
+    }
+
     if (parsedStart || parsedEnd) {
       where.createdAt = {};
       if (parsedStart) {
@@ -1924,6 +1947,7 @@ export class StockService {
               brand: true,
               productType: true,
               trackingType: true,
+              sellingPrice: true,
             },
           },
           createdBy: {
@@ -1943,6 +1967,7 @@ export class StockService {
                   serialNumber: true,
                   storage: true,
                   color: true,
+                  purchasePrice: true,
                   location: true,
                   status: true,
                 },
@@ -1955,23 +1980,29 @@ export class StockService {
     ]);
 
     const data = rawTransfers.map((t) => {
+      const sellingPriceNum = t.product.sellingPrice
+        ? Number(t.product.sellingPrice)
+        : 0;
+
       const units = t.movementUnits.map((mu) => ({
         id: mu.productUnit.id,
         imei: mu.productUnit.imei,
         serialNumber: mu.productUnit.serialNumber,
         storage: mu.productUnit.storage,
         color: mu.productUnit.color,
+        purchasePrice: mu.productUnit.purchasePrice
+          ? Number(mu.productUnit.purchasePrice)
+          : null,
         location: mu.productUnit.location,
         status: mu.productUnit.status,
       }));
 
       return {
         id: t.id,
-        productId: t.productId,
         movementType: t.movementType,
+        quantity: t.quantity,
         fromLocation: t.fromLocation,
         toLocation: t.toLocation,
-        quantity: t.quantity,
         costPrice: t.costPrice ? Number(t.costPrice) : null,
         note: t.note,
         createdById: t.createdById,
@@ -1982,6 +2013,7 @@ export class StockService {
           brand: t.product.brand,
           productType: t.product.productType,
           trackingType: t.product.trackingType,
+          sellingPrice: sellingPriceNum,
         },
         createdBy: {
           id: t.createdBy.id,
@@ -1989,11 +2021,11 @@ export class StockService {
           email: t.createdBy.email,
           role: t.createdBy.role,
         },
-        units,
+        units: t.product.trackingType === TrackingType.SERIALIZED ? units : [],
       };
     });
 
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
 
     return {
       data,

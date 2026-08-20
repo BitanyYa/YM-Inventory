@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Location } from '@prisma/client';
+import { Location, ProductType, TrackingType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
@@ -39,6 +39,35 @@ export class QueryStockTransferDto {
   productId?: string;
 
   @ApiPropertyOptional({
+    enum: ProductType,
+    description: 'Filter transfers by Product Type (e.g. PHONE, ACCESSORY)',
+  })
+  @IsEnum(ProductType)
+  @IsOptional()
+  productType?: ProductType;
+
+  @ApiPropertyOptional({
+    enum: TrackingType,
+    description: 'Filter transfers by Tracking Type (QUANTITY, SERIALIZED)',
+  })
+  @IsEnum(TrackingType)
+  @IsOptional()
+  trackingType?: TrackingType;
+
+  @ApiPropertyOptional({ description: 'Filter transfers created by User ID' })
+  @IsString()
+  @IsOptional()
+  createdById?: string;
+
+  @ApiPropertyOptional({
+    example: 'Samsung',
+    description: 'Search product by name or brand (case-insensitive)',
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiPropertyOptional({
     enum: Location,
     description: 'Filter transfers by source location (WAREHOUSE, SHOP)',
   })
@@ -55,8 +84,8 @@ export class QueryStockTransferDto {
   toLocation?: Location;
 
   @ApiPropertyOptional({
-    example: '2026-08-17',
-    description: 'Single date filter (ISO string or YYYY-MM-DD). Filter transfers on that specific date.',
+    example: '2026-08-20',
+    description: 'Single date filter (ISO string or YYYY-MM-DD)',
   })
   @IsDateString()
   @IsOptional()
@@ -71,7 +100,7 @@ export class QueryStockTransferDto {
   startDate?: string;
 
   @ApiPropertyOptional({
-    example: '2026-08-17',
+    example: '2026-08-20',
     description: 'Filter transfers on or before this date (ISO string or YYYY-MM-DD)',
   })
   @IsDateString()
