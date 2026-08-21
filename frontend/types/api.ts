@@ -299,3 +299,103 @@ export interface StockMovementsResponse {
   data: StockMovementItem[];
   meta: PaginationMeta;
 }
+
+/* ─── Inventory Query & Response Types ─────────────────────────────────────── */
+
+export interface QueryInventoryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  categoryId?: string;
+  productType?: ProductType | '';
+  trackingType?: TrackingType | '';
+  location?: Location | '';
+  stockStatus?: InventoryStockStatus | '';
+  isActive?: boolean;
+}
+
+export interface InventoryProductItem extends ProductItem {
+  /* ProductItem already carries inventory: ProductInventorySummary
+     and unitSummary is optional on the detail response.
+     This alias makes intent explicit when used in inventory contexts. */
+  unitSummary?: SerializedUnitSummary | null;
+}
+
+export interface InventoryListResponse {
+  data: InventoryProductItem[];
+  meta: PaginationMeta;
+}
+
+/* GET /inventory/summary */
+export interface InventorySummaryByType {
+  PHONE: number;
+  ACCESSORY: number;
+  TABLET: number;
+  LAPTOP: number;
+  SMART_WATCH: number;
+  OTHER: number;
+}
+
+export interface InventorySummaryData {
+  totalProducts: number;
+  totalUnits: number;
+  warehouseUnits: number;
+  shopUnits: number;
+  lowStockProducts: number;
+  outOfStockProducts: number;
+}
+
+export interface InventorySummaryResponse {
+  data: InventorySummaryData;
+}
+
+/* ─── Stock Operation Request Types ─────────────────────────────────────────── */
+
+export interface ReceiveUnitRequest {
+  imei: string;
+  serialNumber?: string;
+  storage?: number;
+  color?: string;
+  purchasePrice: number;
+}
+
+export interface ReceiveStockRequest {
+  productId: string;
+  /* QUANTITY fields */
+  quantity?: number;
+  purchasePrice?: number;
+  /* SERIALIZED fields */
+  units?: ReceiveUnitRequest[];
+  reference?: string;
+  note?: string;
+}
+
+export interface TransferStockRequest {
+  productId: string;
+  quantity?: number;
+  unitIds?: string[];
+  note?: string;
+}
+
+export interface SellStockRequest {
+  productId: string;
+  quantity?: number;
+  unitIds?: string[];
+  note?: string;
+}
+
+export interface ReturnStockRequest {
+  productId: string;
+  quantity?: number;
+  unitIds?: string[];
+  location?: Location;
+  note?: string;
+}
+
+export interface DamageLossStockRequest {
+  productId: string;
+  quantity?: number;
+  unitIds?: string[];
+  location: Location;
+  note?: string;
+}
