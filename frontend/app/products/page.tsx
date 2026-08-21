@@ -17,9 +17,10 @@ import { AppShell } from '../../components/layout/AppShell';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { CreateProductModal } from '../../components/products/CreateProductModal';
 import { EditProductModal } from '../../components/products/EditProductModal';
+import { CreateCategoryModal } from '../../components/categories/CreateCategoryModal';
+import { EditCategoryModal } from '../../components/categories/EditCategoryModal';
 import { formatCurrency } from '../../lib/utils';
 import { ProductsIcon, SearchIcon } from '../../components/ui/Icons';
 
@@ -52,9 +53,12 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
-  // Modal State
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Modal States
+  const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
+
+  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -65,18 +69,19 @@ export default function ProductsPage() {
     return () => clearTimeout(handler);
   }, [search]);
 
-  // Load categories
-  useEffect(() => {
-    async function loadCategories() {
-      try {
-        const data = await categoryService.getCategories();
-        setCategories(data || []);
-      } catch (err) {
-        console.error('Failed to load categories:', err);
-      }
+  // Load categories dynamically
+  const fetchCategories = useCallback(async () => {
+    try {
+      const data = await categoryService.getCategories();
+      setCategories(data || []);
+    } catch (err) {
+      console.error('Failed to load categories:', err);
     }
-    loadCategories();
   }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   // Fetch Products
   const fetchProducts = useCallback(async () => {
@@ -111,14 +116,31 @@ export default function ProductsPage() {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleCreateSuccess = () => {
+  const handleCreateProductSuccess = () => {
     setSuccessBanner('Product created successfully!');
     fetchProducts();
+    fetchCategories();
     setTimeout(() => setSuccessBanner(null), 4000);
   };
 
-  const handleEditSuccess = () => {
+  const handleEditProductSuccess = () => {
     setSuccessBanner('Product updated successfully!');
+    fetchProducts();
+    fetchCategories();
+    setTimeout(() => setSuccessBanner(null), 4000);
+  };
+
+  const handleCreateCategorySuccess = (newCategory: Category) => {
+    setSuccessBanner(`Category "${newCategory.name}" created successfully!`);
+    fetchCategories();
+    setCategoryId(newCategory.id);
+    setPage(1);
+    setTimeout(() => setSuccessBanner(null), 4000);
+  };
+
+  const handleEditCategorySuccess = (updatedCategory: Category) => {
+    setSuccessBanner(`Category "${updatedCategory.name}" updated successfully!`);
+    fetchCategories();
     fetchProducts();
     setTimeout(() => setSuccessBanner(null), 4000);
   };
@@ -133,29 +155,99 @@ export default function ProductsPage() {
     setPage(1);
   };
 
+  const getStockStatusBadge = (status: InventoryStockStatus) => {
+    switch (status) {
+      case 'IN_STOCK':
+        return <Badge variant="success" size="sm">IN STOCK</Badge>;
+      case 'LOW_STOCK':
+        return <Badge variant="warning" size="sm">LOW STOCK</Badge>;
+      case 'OUT_OF_STOCK':
+        return <Badge variant="danger" size="sm">OUT OF STOCK</Badge>;
+      default:
+        return null;
+    }
+  };
+
   return (
     <AppShell>
       <div className="space-y-6">
-        {/* Page Header */}
+        {/* Header Bar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
-              Products Catalog
+              Products & Repair Inventory
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Manage your products, categories, pricing, and stock tracking modes.
+              Manage phones, repair parts (Screens, ICs, Batteries), and accessories.
             </p>
           </div>
 
-          {isAdmin && (
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => setIsCreateOpen(true)}
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => setIsCreateCategoryOpen(true)}
+                >
+                  + Add Category
+                </Button>
+
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => setIsCreateProductOpen(true)}
+                >
+                  + Add Product
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Dynamic Category Navigation Bar / Pill Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
+          <button
+            onClick={() => {
+              setCategoryId('');
+              setPage(1);
+            }}
+            className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
+              categoryId === ''
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            <span>All Products</span>
+          </button>
+
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => {
+                setCategoryId(cat.id);
+                setPage(1);
+              }}
+              className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
+                categoryId === cat.id
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+              }`}
             >
-              + Add Product
-            </Button>
-          )}
+              <span>{cat.name}</span>
+              {cat.productCount !== undefined && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    categoryId === cat.id
+                      ? 'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                  }`}
+                >
+                  {cat.productCount}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Success Banner */}
@@ -181,11 +273,11 @@ export default function ProductsPage() {
         {/* Search & Filter Bar Card */}
         <Card className="p-4">
           <div className="flex flex-col gap-3.5">
-            {/* Top row: Search input */}
+            {/* Search Input */}
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search products by name or brand..."
+                placeholder="Search by product name, repair component, or brand (e.g. Samsung A15 Screen)..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-400"
@@ -193,41 +285,9 @@ export default function ProductsPage() {
               <SearchIcon size={18} className="absolute left-3 top-2.5 text-slate-400" />
             </div>
 
-            {/* Bottom row: Filter Dropdowns */}
+            {/* Filter Dropdowns */}
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-              {/* Product Type Filter */}
-              <select
-                value={productType}
-                onChange={(e) => {
-                  setProductType(e.target.value as ProductType | '');
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <option value="">All Types</option>
-                <option value="PHONE">Phone</option>
-                <option value="ACCESSORY">Accessory</option>
-                <option value="TABLET">Tablet</option>
-                <option value="LAPTOP">Laptop</option>
-                <option value="SMART_WATCH">Smart Watch</option>
-                <option value="OTHER">Other</option>
-              </select>
-
-              {/* Tracking Type Filter */}
-              <select
-                value={trackingType}
-                onChange={(e) => {
-                  setTrackingType(e.target.value as TrackingType | '');
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <option value="">All Tracking</option>
-                <option value="SERIALIZED">Serialized</option>
-                <option value="QUANTITY">Quantity</option>
-              </select>
-
-              {/* Category Filter */}
+              {/* Category Dropdown Filter */}
               <select
                 value={categoryId}
                 onChange={(e) => {
@@ -244,6 +304,38 @@ export default function ProductsPage() {
                 ))}
               </select>
 
+              {/* Product Type Filter */}
+              <select
+                value={productType}
+                onChange={(e) => {
+                  setProductType(e.target.value as ProductType | '');
+                  setPage(1);
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              >
+                <option value="">All Types</option>
+                <option value="ACCESSORY">Accessory / Repair</option>
+                <option value="PHONE">Phone</option>
+                <option value="TABLET">Tablet</option>
+                <option value="LAPTOP">Laptop</option>
+                <option value="SMART_WATCH">Smart Watch</option>
+                <option value="OTHER">Other</option>
+              </select>
+
+              {/* Tracking Type Filter */}
+              <select
+                value={trackingType}
+                onChange={(e) => {
+                  setTrackingType(e.target.value as TrackingType | '');
+                  setPage(1);
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              >
+                <option value="">All Tracking</option>
+                <option value="QUANTITY">Quantity</option>
+                <option value="SERIALIZED">Serialized</option>
+              </select>
+
               {/* Active Status Filter */}
               <select
                 value={isActiveFilter}
@@ -258,7 +350,7 @@ export default function ProductsPage() {
                 <option value="all">All Statuses</option>
               </select>
 
-              {/* Stock Status Filter */}
+              {/* Stock Health Filter */}
               <select
                 value={stockStatusFilter}
                 onChange={(e) => {
@@ -267,7 +359,7 @@ export default function ProductsPage() {
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
               >
-                <option value="">All Stock Statuses</option>
+                <option value="">All Stock Health</option>
                 <option value="IN_STOCK">In Stock</option>
                 <option value="LOW_STOCK">Low Stock</option>
                 <option value="OUT_OF_STOCK">Out of Stock</option>
@@ -296,7 +388,7 @@ export default function ProductsPage() {
                 No products found
               </h3>
               <p className="mt-1 max-w-sm text-xs text-slate-500">
-                No products match your current search and filter settings.
+                No inventory items match your current search and category filters.
               </p>
               <Button
                 variant="secondary"
@@ -314,12 +406,12 @@ export default function ProductsPage() {
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
                     <tr>
-                      <th className="px-6 py-3.5">Product</th>
+                      <th className="px-6 py-3.5">Item & Brand</th>
                       <th className="px-4 py-3.5">Category</th>
-                      <th className="px-4 py-3.5">Type</th>
-                      <th className="px-4 py-3.5">Tracking</th>
+                      <th className="px-4 py-3.5 text-center">Current Stock</th>
+                      <th className="px-4 py-3.5 text-center">Health</th>
                       <th className="px-4 py-3.5 text-right">Selling Price</th>
-                      <th className="px-4 py-3.5 text-center">Min Stock</th>
+                      <th className="px-4 py-3.5 text-center">Tracking</th>
                       <th className="px-4 py-3.5 text-center">Status</th>
                       <th className="px-6 py-3.5 text-right">Actions</th>
                     </tr>
@@ -341,15 +433,22 @@ export default function ProductsPage() {
                             {product.brand}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-xs text-slate-600 dark:text-slate-300">
+                        <td className="px-4 py-4 text-xs font-medium text-slate-700 dark:text-slate-300">
                           {product.category?.name || '—'}
                         </td>
-                        <td className="px-4 py-4">
-                          <Badge variant="neutral" size="sm">
-                            {product.productType}
-                          </Badge>
+                        <td className="px-4 py-4 text-center font-bold text-slate-900 dark:text-slate-100">
+                          {product.inventory?.totalQuantity || 0}
+                          <span className="block text-[10px] font-normal text-slate-500">
+                            (WH: {product.inventory?.warehouseQuantity || 0} / Shop: {product.inventory?.shopQuantity || 0})
+                          </span>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 text-center">
+                          {getStockStatusBadge(product.stockStatus)}
+                        </td>
+                        <td className="px-4 py-4 text-right font-semibold text-slate-900 dark:text-slate-100">
+                          {formatCurrency(product.sellingPrice)}
+                        </td>
+                        <td className="px-4 py-4 text-center">
                           <Badge
                             variant={
                               product.trackingType === 'SERIALIZED'
@@ -360,12 +459,6 @@ export default function ProductsPage() {
                           >
                             {product.trackingType}
                           </Badge>
-                        </td>
-                        <td className="px-4 py-4 text-right font-semibold text-slate-900 dark:text-slate-100">
-                          {formatCurrency(product.sellingPrice)}
-                        </td>
-                        <td className="px-4 py-4 text-center text-xs font-medium text-slate-700 dark:text-slate-300">
-                          {product.minimumStock}
                         </td>
                         <td className="px-4 py-4 text-center">
                           <Badge
@@ -399,10 +492,10 @@ export default function ProductsPage() {
                 </table>
               </div>
 
-              {/* Mobile List Items */}
+              {/* Mobile Card Items */}
               <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
                 {products.map((product) => (
-                  <div key={product.id} className="p-4 space-y-2">
+                  <div key={product.id} className="p-4 space-y-2.5">
                     <div className="flex items-start justify-between">
                       <div>
                         <Link
@@ -415,37 +508,43 @@ export default function ProductsPage() {
                           {product.brand} • {product.category?.name || 'Uncategorized'}
                         </span>
                       </div>
-                      <Badge
-                        variant={product.isActive ? 'success' : 'neutral'}
-                        size="sm"
-                      >
-                        {product.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                      {getStockStatusBadge(product.stockStatus)}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Badge variant="neutral" size="sm">
-                        {product.productType}
-                      </Badge>
-                      <Badge
-                        variant={
-                          product.trackingType === 'SERIALIZED'
-                            ? 'info'
-                            : 'neutral'
-                        }
-                        size="sm"
-                      >
-                        {product.trackingType}
-                      </Badge>
+                    <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2.5 text-xs dark:bg-slate-950">
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-semibold">Total Stock</span>
+                        <strong className="text-sm text-slate-900 dark:text-slate-100">
+                          {product.inventory?.totalQuantity || 0} units
+                        </strong>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-slate-500 block text-[10px] uppercase font-semibold">Selling Price</span>
+                        <strong className="text-sm text-slate-900 dark:text-slate-100">
+                          {formatCurrency(product.sellingPrice)}
+                        </strong>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-xs pt-1">
-                      <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                        {formatCurrency(product.sellingPrice)}
-                      </span>
-                      <span className="text-slate-500">
-                        Min stock: {product.minimumStock}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="neutral" size="sm">
+                          {product.productType}
+                        </Badge>
+                        <Badge
+                          variant={
+                            product.trackingType === 'SERIALIZED'
+                              ? 'info'
+                              : 'neutral'
+                          }
+                          size="sm"
+                        >
+                          {product.trackingType}
+                        </Badge>
+                      </div>
+                      <Badge variant={product.isActive ? 'success' : 'neutral'} size="sm">
+                        {product.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
                     </div>
 
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
@@ -468,10 +567,10 @@ export default function ProductsPage() {
                 ))}
               </div>
 
-              {/* Pagination Controls */}
+              {/* Pagination Footer */}
               <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-3.5 dark:border-slate-800 dark:bg-slate-950/60">
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Showing page {meta.page} of {meta.totalPages || 1} ({meta.total} products total)
+                  Showing page {meta.page} of {meta.totalPages || 1} ({meta.total} items total)
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -498,19 +597,31 @@ export default function ProductsPage() {
         </Card>
       </div>
 
-      {/* Create Product Modal */}
+      {/* Modals */}
       <CreateProductModal
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onSuccess={handleCreateSuccess}
+        isOpen={isCreateProductOpen}
+        onClose={() => setIsCreateProductOpen(false)}
+        onSuccess={handleCreateProductSuccess}
       />
 
-      {/* Edit Product Modal */}
       <EditProductModal
         product={editingProduct}
         isOpen={!!editingProduct}
         onClose={() => setEditingProduct(null)}
-        onSuccess={handleEditSuccess}
+        onSuccess={handleEditProductSuccess}
+      />
+
+      <CreateCategoryModal
+        isOpen={isCreateCategoryOpen}
+        onClose={() => setIsCreateCategoryOpen(false)}
+        onSuccess={handleCreateCategorySuccess}
+      />
+
+      <EditCategoryModal
+        category={editingCategory}
+        isOpen={!!editingCategory}
+        onClose={() => setEditingCategory(null)}
+        onSuccess={handleEditCategorySuccess}
       />
     </AppShell>
   );
