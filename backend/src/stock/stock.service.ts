@@ -1766,9 +1766,18 @@ export class StockService {
             id: true,
             name: true,
             brand: true,
+            description: true,
             productType: true,
             trackingType: true,
             sellingPrice: true,
+            minimumStock: true,
+            isActive: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         createdBy: {
@@ -1808,7 +1817,7 @@ export class StockService {
     });
 
     if (!movement) {
-      throw new NotFoundException(`Movement with ID "${id}" not found`);
+      throw new NotFoundException(`Stock movement with ID "${id}" not found`);
     }
 
     const units =
@@ -1828,41 +1837,53 @@ export class StockService {
         : [];
 
     return {
-      id: movement.id,
-      movementType: movement.movementType,
-      quantity: movement.quantity,
-      fromLocation: movement.fromLocation,
-      toLocation: movement.toLocation,
-      costPrice: movement.costPrice ? Number(movement.costPrice) : null,
-      note: movement.note,
-      createdById: movement.createdById,
-      createdAt: movement.createdAt.toISOString(),
-      product: {
-        id: movement.product.id,
-        name: movement.product.name,
-        brand: movement.product.brand,
-        productType: movement.product.productType,
-        trackingType: movement.product.trackingType,
-        sellingPrice: movement.product.sellingPrice
-          ? Number(movement.product.sellingPrice)
-          : 0,
+      data: {
+        id: movement.id,
+        productId: movement.productId,
+        movementType: movement.movementType,
+        fromLocation: movement.fromLocation,
+        toLocation: movement.toLocation,
+        quantity: movement.quantity,
+        costPrice: movement.costPrice ? Number(movement.costPrice) : null,
+        note: movement.note,
+        createdById: movement.createdById,
+        createdAt: movement.createdAt.toISOString(),
+        product: {
+          id: movement.product.id,
+          name: movement.product.name,
+          brand: movement.product.brand,
+          description: movement.product.description,
+          productType: movement.product.productType,
+          trackingType: movement.product.trackingType,
+          sellingPrice: movement.product.sellingPrice
+            ? Number(movement.product.sellingPrice)
+            : 0,
+          minimumStock: movement.product.minimumStock,
+          isActive: movement.product.isActive,
+          category: movement.product.category
+            ? {
+                id: movement.product.category.id,
+                name: movement.product.category.name,
+              }
+            : null,
+        },
+        createdBy: {
+          id: movement.createdBy.id,
+          name: movement.createdBy.name,
+          email: movement.createdBy.email,
+          role: movement.createdBy.role,
+        },
+        units,
+        stockBatch: movement.stockBatch
+          ? {
+              id: movement.stockBatch.id,
+              reference: movement.stockBatch.reference,
+              note: movement.stockBatch.note,
+              createdById: movement.stockBatch.createdById,
+              createdAt: movement.stockBatch.createdAt.toISOString(),
+            }
+          : null,
       },
-      createdBy: {
-        id: movement.createdBy.id,
-        name: movement.createdBy.name,
-        email: movement.createdBy.email,
-        role: movement.createdBy.role,
-      },
-      units,
-      stockBatch: movement.stockBatch
-        ? {
-            id: movement.stockBatch.id,
-            reference: movement.stockBatch.reference,
-            note: movement.stockBatch.note,
-            createdById: movement.stockBatch.createdById,
-            createdAt: movement.stockBatch.createdAt.toISOString(),
-          }
-        : null,
     };
   }
 

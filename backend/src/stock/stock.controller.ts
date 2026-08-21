@@ -226,9 +226,11 @@ export class StockController {
   @ApiResponse({
     status: 200,
     description:
-      'Stock movement details with product, creator, batch, and associated units',
+      'Stock movement details with product, category, creator, and associated units',
   })
-  @ApiResponse({ status: 404, description: 'Stock movement not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing JWT token' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient user role permissions' })
+  @ApiResponse({ status: 404, description: 'Stock movement with ID not found' })
   async findMovementById(@Param('id') id: string) {
     return this.stockService.findMovementById(id);
   }
