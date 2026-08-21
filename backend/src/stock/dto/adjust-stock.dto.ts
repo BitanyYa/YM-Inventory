@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Location, MovementType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 
 export class AdjustStockDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'uuid-product-id',
     description: 'Product ID to adjust (damage or loss)',
   })
@@ -20,14 +20,23 @@ export class AdjustStockDto {
   @IsNotEmpty()
   productId: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     enum: MovementType,
     example: MovementType.DAMAGE,
-    description: 'Adjustment type: must be DAMAGE or LOSS',
+    description: 'Adjustment type: DAMAGE or LOSS',
   })
   @IsEnum(MovementType)
-  @IsNotEmpty()
-  movementType: MovementType;
+  @IsOptional()
+  movementType?: MovementType;
+
+  @ApiPropertyOptional({
+    enum: MovementType,
+    example: MovementType.DAMAGE,
+    description: 'Alias for movementType: DAMAGE or LOSS',
+  })
+  @IsEnum(MovementType)
+  @IsOptional()
+  type?: MovementType;
 
   @ApiPropertyOptional({
     example: 2,
@@ -52,7 +61,7 @@ export class AdjustStockDto {
   @ApiPropertyOptional({
     enum: Location,
     example: Location.WAREHOUSE,
-    description: 'Location of stock being adjusted (Required for QUANTITY tracked products)',
+    description: 'Location of stock being adjusted (WAREHOUSE or SHOP)',
   })
   @IsEnum(Location)
   @IsOptional()

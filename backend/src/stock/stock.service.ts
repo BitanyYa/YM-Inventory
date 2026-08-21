@@ -1128,13 +1128,30 @@ export class StockService {
   }
 
   async adjustStock(dto: AdjustStockDto, userId: string) {
+    const adjustmentType = dto.type || dto.movementType;
+
     if (
-      dto.movementType !== MovementType.DAMAGE &&
-      dto.movementType !== MovementType.LOSS
+      adjustmentType !== MovementType.DAMAGE &&
+      adjustmentType !== MovementType.LOSS
     ) {
       throw new BadRequestException(
-        'movementType must be either DAMAGE or LOSS',
+        'movementType or type must be either DAMAGE or LOSS',
       );
+    }
+
+    if (dto.note !== undefined && dto.note !== null) {
+      if (typeof dto.note === 'string' && dto.note.trim() === '') {
+        throw new BadRequestException('note cannot be an empty string');
+      }
+    }
+
+    if (dto.location) {
+      if (
+        dto.location !== Location.WAREHOUSE &&
+        dto.location !== Location.SHOP
+      ) {
+        throw new BadRequestException('location must be either WAREHOUSE or SHOP');
+      }
     }
 
     const product = await this.prisma.product.findUnique({
@@ -1146,6 +1163,14 @@ export class StockService {
         `Product with ID "${dto.productId}" not found`,
       );
     }
+
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `Product "${product.name}" is inactive/soft-deleted and cannot be adjusted`,
+      );
+    }
+
+    const noteText = dto.note ? dto.note.trim() : null;
 
     return this.prisma.$transaction(async (tx) => {
       if (product.trackingType === TrackingType.QUANTITY) {
@@ -1175,7 +1200,7 @@ export class StockService {
           );
         }
 
-        await tx.inventory.update({
+        const updatedInventory = await tx.inventory.update({
           where: { id: inventory.id },
           data: {
             quantity: { decrement: dto.quantity },
@@ -1185,16 +1210,33 @@ export class StockService {
         const movement = await tx.stockMovement.create({
           data: {
             productId: product.id,
-            movementType: dto.movementType,
+            movementType: adjustmentType,
             quantity: dto.quantity,
             fromLocation: dto.location,
             toLocation: null,
             createdById: userId,
-            note: dto.note || null,
+            note: noteText,
           },
         });
 
         return {
+          data: {
+            movement: {
+              id: movement.id,
+              movementType: movement.movementType,
+              quantity: movement.quantity,
+              fromLocation: movement.fromLocation,
+              toLocation: movement.toLocation,
+              note: movement.note,
+              createdById: movement.createdById,
+              createdAt: movement.createdAt.toISOString(),
+            },
+            inventory: {
+              location: dto.location,
+              remainingQuantity: updatedInventory.quantity,
+            },
+            units: [],
+          },
           movement,
           quantityAdjusted: dto.quantity,
           affectedUnits: [],
@@ -1222,10 +1264,21 @@ export class StockService {
           );
         }
 
+        const targetLocation = dto.location || units[0]?.location;
+        if (!targetLocation) {
+          throw new BadRequestException('location is required for serialized adjustment');
+        }
+
         for (const unit of units) {
           if (unit.productId !== product.id) {
             throw new BadRequestException(
               `Product unit "${unit.id}" does not belong to product "${product.name}"`,
+            );
+          }
+
+          if (dto.location && unit.location !== dto.location) {
+            throw new BadRequestException(
+              `Product unit "${unit.id}" is located at ${unit.location}, not requested location ${dto.location}`,
             );
           }
 
@@ -1250,6 +1303,8 @@ export class StockService {
         );
         const shopUnits = units.filter((u) => u.location === Location.SHOP);
 
+        let lastUpdatedInventory: any = null;
+
         if (warehouseUnits.length > 0) {
           const whInventory = await tx.inventory.findUnique({
             where: {
@@ -1266,7 +1321,7 @@ export class StockService {
             );
           }
 
-          await tx.inventory.update({
+          lastUpdatedInventory = await tx.inventory.update({
             where: { id: whInventory.id },
             data: {
               quantity: { decrement: warehouseUnits.length },
@@ -1290,7 +1345,7 @@ export class StockService {
             );
           }
 
-          await tx.inventory.update({
+          lastUpdatedInventory = await tx.inventory.update({
             where: { id: shopInventory.id },
             data: {
               quantity: { decrement: shopUnits.length },
@@ -1313,12 +1368,12 @@ export class StockService {
           const whMovement = await tx.stockMovement.create({
             data: {
               productId: product.id,
-              movementType: dto.movementType,
+              movementType: adjustmentType,
               quantity: warehouseUnits.length,
               fromLocation: Location.WAREHOUSE,
               toLocation: null,
               createdById: userId,
-              note: dto.note || null,
+              note: noteText,
             },
           });
 
@@ -1338,12 +1393,12 @@ export class StockService {
           const shopMovement = await tx.stockMovement.create({
             data: {
               productId: product.id,
-              movementType: dto.movementType,
+              movementType: adjustmentType,
               quantity: shopUnits.length,
               fromLocation: Location.SHOP,
               toLocation: null,
               createdById: userId,
-              note: dto.note || null,
+              note: noteText,
             },
           });
 
@@ -1359,7 +1414,7 @@ export class StockService {
           createdMovements.push(shopMovement);
         }
 
-        const affectedUnits = await tx.productUnit.findMany({
+        const rawAffectedUnits = await tx.productUnit.findMany({
           where: {
             id: { in: dto.unitIds },
           },
@@ -1377,8 +1432,32 @@ export class StockService {
           },
         });
 
+        const affectedUnits = rawAffectedUnits.map((u) => ({
+          ...u,
+          purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+        }));
+
+        const primaryMovement = createdMovements[0];
+
         return {
-          movement: createdMovements[0],
+          data: {
+            movement: {
+              id: primaryMovement.id,
+              movementType: primaryMovement.movementType,
+              quantity: dto.unitIds.length,
+              fromLocation: primaryMovement.fromLocation,
+              toLocation: primaryMovement.toLocation,
+              note: primaryMovement.note,
+              createdById: primaryMovement.createdById,
+              createdAt: primaryMovement.createdAt.toISOString(),
+            },
+            inventory: {
+              location: targetLocation,
+              remainingQuantity: lastUpdatedInventory ? lastUpdatedInventory.quantity : 0,
+            },
+            units: affectedUnits,
+          },
+          movement: primaryMovement,
           movements: createdMovements,
           quantityAdjusted: dto.unitIds.length,
           affectedUnits,

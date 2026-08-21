@@ -320,7 +320,7 @@ export class StockController {
   }
 
   @Post('damage')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Record damaged stock at WAREHOUSE or SHOP (QUANTITY or SERIALIZED products)',
   })
@@ -332,6 +332,8 @@ export class StockController {
     status: 400,
     description: 'Validation error, inactive product, insufficient stock, or unit not in active status',
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   async damageStock(
     @Body() dto: DamageStockDto,
@@ -341,7 +343,7 @@ export class StockController {
   }
 
   @Post('loss')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Record lost stock at WAREHOUSE or SHOP (QUANTITY or SERIALIZED products)',
   })
@@ -353,6 +355,8 @@ export class StockController {
     status: 400,
     description: 'Validation error, inactive product, insufficient stock, or unit not in active status',
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   async lossStock(
     @Body() dto: LossStockDto,
@@ -362,7 +366,7 @@ export class StockController {
   }
 
   @Post('adjust')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Adjust stock for DAMAGE or LOSS (QUANTITY or SERIALIZED products)',
   })
@@ -374,8 +378,33 @@ export class StockController {
     status: 400,
     description: 'Validation error, invalid movement type, or insufficient stock / invalid unit status',
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Product or ProductUnit not found' })
   async adjustStock(
+    @Body() dto: AdjustStockDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.stockService.adjustStock(dto, userId);
+  }
+
+  @Post('adjust-loss')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary: 'Adjust stock for DAMAGE or LOSS (supports type or movementType, location, quantity or unitIds)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Stock successfully adjusted for DAMAGE or LOSS',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error, invalid movement type, or insufficient stock / invalid unit status',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Product or ProductUnit not found' })
+  async adjustLoss(
     @Body() dto: AdjustStockDto,
     @GetUser('id') userId: string,
   ) {
