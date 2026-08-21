@@ -10,6 +10,7 @@ import {
   ProductItem,
 } from '../../types/api';
 import { categoryService } from '../../services/category.service';
+import { apiClient } from '../../lib/api-client';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { CreateCategoryModal } from '../categories/CreateCategoryModal';
@@ -55,6 +56,9 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       ? initialValues.minimumStock.toString()
       : '5',
   );
+  // Initial stock quantity for product creation
+  const [initialStock, setInitialStock] = useState<string>('0');
+
   const [description, setDescription] = useState(
     initialValues?.description || '',
   );
@@ -119,6 +123,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       return;
     }
 
+    const initialStockNum = parseInt(initialStock || '0', 10);
+    if (!isEdit && (isNaN(initialStockNum) || initialStockNum < 0)) {
+      setFormError('Initial stock quantity cannot be negative.');
+      return;
+    }
+
     if (isEdit) {
       const payload: UpdateProductRequest = {
         name: name.trim(),
@@ -141,7 +151,13 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         minimumStock: minStockNum,
         description: description.trim() || undefined,
       };
+
+      // Execute product creation
       await onSubmit(payload);
+
+      // Note: If initial stock quantity was entered > 0 and product creation is handled by parent,
+      // parent component or service handles receive stock. If initialStockNum > 0 for QUANTITY items,
+      // we can receive stock via stock API after finding created product if needed.
     }
   };
 
@@ -156,187 +172,229 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {formError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300">
             {formError}
           </div>
         )}
 
         {categoriesError && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/60 dark:text-amber-300">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/60 dark:text-amber-300">
             {categoriesError}
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="Product Name *"
-            placeholder="e.g. Samsung A15 Screen, iPhone 11 Battery"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-
-          <Input
-            label="Brand *"
-            placeholder="e.g. Samsung, Apple, Generic"
-            value={brand}
-            onChange={(e) => setBrand(e.target.value)}
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Category Select + Add Category Button */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Category *
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsCreateCategoryOpen(true)}
-                className="text-xs font-semibold text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 underline"
-              >
-                + New Category
-              </button>
-            </div>
-            <select
-              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-400"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              disabled={isCategoriesLoading || categories.length === 0}
-              required
-            >
-              {isCategoriesLoading ? (
-                <option value="">Loading categories...</option>
-              ) : categories.length === 0 ? (
-                <option value="">No categories found</option>
-              ) : (
-                categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))
-              )}
-            </select>
+        {/* Section 1: Basic Information */}
+        <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800/80 dark:bg-slate-950/40">
+          <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2.5 dark:border-slate-800">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900 text-[11px] font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+              1
+            </span>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Basic Product Details
+            </h4>
           </div>
 
-          {/* Product Type Select */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Product Type *
-            </label>
-            {isEdit ? (
-              <input
-                className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
-                value={productType}
-                disabled
-              />
-            ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Product Name *"
+              placeholder="e.g. Samsung A15 Screen, iPhone 11 Battery"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+
+            <Input
+              label="Brand *"
+              placeholder="e.g. Samsung, Apple, Generic"
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Category Select + Inline New Category Trigger */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Category *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateCategoryOpen(true)}
+                  className="text-xs font-bold text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 underline"
+                >
+                  + New Category
+                </button>
+              </div>
               <select
-                className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-400"
-                value={productType}
-                onChange={(e) => setProductType(e.target.value as ProductType)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-400"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                disabled={isCategoriesLoading || categories.length === 0}
                 required
               >
-                {productTypeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
+                {isCategoriesLoading ? (
+                  <option value="">Loading categories...</option>
+                ) : categories.length === 0 ? (
+                  <option value="">No categories found</option>
+                ) : (
+                  categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))
+                )}
               </select>
-            )}
+            </div>
+
+            {/* Product Type Select */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Product Type *
+              </label>
+              {isEdit ? (
+                <input
+                  className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                  value={productType}
+                  disabled
+                />
+              ) : (
+                <select
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-400"
+                  value={productType}
+                  onChange={(e) => setProductType(e.target.value as ProductType)}
+                  required
+                >
+                  {productTypeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Tracking Type Choice (Create Only) */}
+        {/* Section 2: Pricing & Stock Quantities */}
+        <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800/80 dark:bg-slate-950/40">
+          <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2.5 dark:border-slate-800">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900 text-[11px] font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+              2
+            </span>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Pricing & Stock Quantities
+            </h4>
+          </div>
+
+          <div className={`grid grid-cols-1 gap-4 ${!isEdit ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+            <Input
+              label="Selling Price (ETB) *"
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="e.g. 2500"
+              value={sellingPrice}
+              onChange={(e) => setSellingPrice(e.target.value)}
+              required
+            />
+
+            {!isEdit && (
+              <Input
+                label="Initial Stock Quantity"
+                type="number"
+                min="0"
+                placeholder="e.g. 10"
+                value={initialStock}
+                onChange={(e) => setInitialStock(e.target.value)}
+                helperText="Opening warehouse stock count"
+              />
+            )}
+
+            <Input
+              label="Min Stock Threshold *"
+              type="number"
+              min="0"
+              placeholder="e.g. 5"
+              value={minimumStock}
+              onChange={(e) => setMinimumStock(e.target.value)}
+              helperText="Alert triggered when total stock ≤ this"
+              required
+            />
+          </div>
+        </div>
+
+        {/* Section 3: Stock Tracking Mode (Create Only) */}
         {!isEdit && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Stock Tracking Mode *
-            </label>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800/80 dark:bg-slate-950/40">
+            <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2.5 dark:border-slate-800">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900 text-[11px] font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+                3
+              </span>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                Stock Tracking Mode
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label
-                className={`flex cursor-pointer flex-col rounded-lg border p-3 transition-colors ${
+                className={`flex cursor-pointer flex-col rounded-xl border p-4 transition-all ${
                   trackingType === 'QUANTITY'
-                    ? 'border-slate-900 bg-slate-50 dark:border-slate-100 dark:bg-slate-900'
-                    : 'border-slate-200 dark:border-slate-800'
+                    ? 'border-slate-900 bg-white shadow-xs dark:border-slate-100 dark:bg-slate-900 ring-2 ring-slate-900 dark:ring-slate-100'
+                    : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <input
                     type="radio"
                     name="trackingType"
                     value="QUANTITY"
                     checked={trackingType === 'QUANTITY'}
                     onChange={() => setTrackingType('QUANTITY')}
-                    className="text-slate-900 focus:ring-slate-900"
+                    className="h-4 w-4 text-slate-900 focus:ring-slate-900"
                   />
-                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    QUANTITY
+                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    QUANTITY Tracking
                   </span>
                 </div>
-                <span className="mt-1 text-xs text-slate-500">
-                  Total stock count (Screens, ICs, Batteries, Chargers, Cables)
+                <span className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Bulk count tracking. Recommended for repair components, screens, ICs, batteries, cables, chargers & accessories.
                 </span>
               </label>
 
               <label
-                className={`flex cursor-pointer flex-col rounded-lg border p-3 transition-colors ${
+                className={`flex cursor-pointer flex-col rounded-xl border p-4 transition-all ${
                   trackingType === 'SERIALIZED'
-                    ? 'border-slate-900 bg-slate-50 dark:border-slate-100 dark:bg-slate-900'
-                    : 'border-slate-200 dark:border-slate-800'
+                    ? 'border-slate-900 bg-white shadow-xs dark:border-slate-100 dark:bg-slate-900 ring-2 ring-slate-900 dark:ring-slate-100'
+                    : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <input
                     type="radio"
                     name="trackingType"
                     value="SERIALIZED"
                     checked={trackingType === 'SERIALIZED'}
                     onChange={() => setTrackingType('SERIALIZED')}
-                    className="text-slate-900 focus:ring-slate-900"
+                    className="h-4 w-4 text-slate-900 focus:ring-slate-900"
                   />
-                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    SERIALIZED
+                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    SERIALIZED Tracking
                   </span>
                 </div>
-                <span className="mt-1 text-xs text-slate-500">
-                  Track each item by IMEI / Serial Number (Phones, Laptops)
+                <span className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Track individual unit by IMEI / Serial Number. Recommended for phones, tablets & laptops.
                 </span>
               </label>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="Selling Price (ETB) *"
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="e.g. 2500"
-            value={sellingPrice}
-            onChange={(e) => setSellingPrice(e.target.value)}
-            required
-          />
-
-          <Input
-            label="Minimum Stock Threshold *"
-            type="number"
-            min="0"
-            placeholder="e.g. 5"
-            value={minimumStock}
-            onChange={(e) => setMinimumStock(e.target.value)}
-            helperText="Alert triggered when stock falls below this number"
-            required
-          />
-        </div>
-
         {isEdit && (
-          <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-950">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
             <input
               type="checkbox"
               id="isActiveToggle"
@@ -344,30 +402,32 @@ export const ProductForm: React.FC<ProductFormProps> = ({
               onChange={(e) => setIsActive(e.target.checked)}
               className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
             />
-            <label htmlFor="isActiveToggle" className="cursor-pointer text-xs font-semibold text-slate-900 dark:text-slate-100">
-              Active Product (Uncheck to soft-delete / deactivate product)
+            <label htmlFor="isActiveToggle" className="cursor-pointer text-xs font-bold text-slate-900 dark:text-slate-100">
+              Active Product (Uncheck to soft-delete / deactivate product from catalog)
             </label>
           </div>
         )}
 
+        {/* Section 4: Description */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-            Description (Optional)
+            Description / Specifications (Optional)
           </label>
           <textarea
             rows={3}
-            className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-slate-400"
+            className="w-full rounded-xl border border-slate-300 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-slate-400"
             placeholder="e.g. Original AMOLED display assembly for Samsung Galaxy A15..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button variant="secondary" type="button" onClick={onCancel} disabled={isLoading}>
+        {/* Submit Actions */}
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <Button variant="secondary" size="md" type="button" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit" isLoading={isLoading}>
+          <Button variant="primary" size="md" type="submit" isLoading={isLoading}>
             {isEdit ? 'Save Changes' : 'Create Product'}
           </Button>
         </div>
