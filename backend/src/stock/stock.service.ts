@@ -37,6 +37,12 @@ export class StockService {
       throw new NotFoundException(`Product with ID "${dto.productId}" not found`);
     }
 
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `Product "${product.name}" is soft-deleted/inactive and cannot receive stock`,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.reference) {
         const existingBatch = await tx.stockBatch.findFirst({
@@ -140,6 +146,7 @@ export class StockService {
           imeiSet.add(unit.imei);
         }
 
+        const createdUnits: any[] = [];
         for (const unit of dto.units) {
           const existingUnit = await tx.productUnit.findUnique({
             where: { imei: unit.imei },
@@ -151,7 +158,7 @@ export class StockService {
             );
           }
 
-          await tx.productUnit.create({
+          const createdUnit = await tx.productUnit.create({
             data: {
               productId: product.id,
               imei: unit.imei,
@@ -163,6 +170,7 @@ export class StockService {
               status: UnitStatus.AVAILABLE,
             },
           });
+          createdUnits.push(createdUnit);
         }
 
         const existingInventory = await tx.inventory.findUnique({
@@ -191,7 +199,7 @@ export class StockService {
           });
         }
 
-        await tx.stockMovement.create({
+        const movement = await tx.stockMovement.create({
           data: {
             productId: product.id,
             movementType: MovementType.STOCK_IN,
@@ -202,6 +210,15 @@ export class StockService {
             note: dto.note || null,
           },
         });
+
+        for (const unit of createdUnits) {
+          await tx.stockMovementUnit.create({
+            data: {
+              stockMovementId: movement.id,
+              productUnitId: unit.id,
+            },
+          });
+        }
       }
 
       return {
@@ -219,6 +236,12 @@ export class StockService {
 
     if (!product) {
       throw new NotFoundException(`Product with ID "${dto.productId}" not found`);
+    }
+
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `Product "${product.name}" is soft-deleted/inactive and cannot transfer stock`,
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -425,7 +448,7 @@ export class StockService {
           });
         }
 
-        transferredUnits = await tx.productUnit.findMany({
+        const rawTransferredUnits = await tx.productUnit.findMany({
           where: {
             id: { in: dto.unitIds },
           },
@@ -434,10 +457,16 @@ export class StockService {
             imei: true,
             storage: true,
             color: true,
+            purchasePrice: true,
             location: true,
             status: true,
           },
         });
+
+        transferredUnits = rawTransferredUnits.map((u) => ({
+          ...u,
+          purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+        }));
 
         return {
           movement,
@@ -457,6 +486,12 @@ export class StockService {
 
     if (!product) {
       throw new NotFoundException(`Product with ID "${dto.productId}" not found`);
+    }
+
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `Product "${product.name}" is soft-deleted/inactive and cannot sell stock`,
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -634,7 +669,7 @@ export class StockService {
           });
         }
 
-        soldUnits = await tx.productUnit.findMany({
+        const rawSoldUnits = await tx.productUnit.findMany({
           where: {
             id: { in: dto.unitIds },
           },
@@ -647,6 +682,11 @@ export class StockService {
             status: true,
           },
         });
+
+        soldUnits = rawSoldUnits.map((u) => ({
+          ...u,
+          purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+        }));
 
         return {
           movement,
