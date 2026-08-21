@@ -474,13 +474,13 @@ export default function InventoryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
-                  {['Product', 'Category', 'Tracking', 'Warehouse', 'Shop', 'Total', 'Status', ''].map(
+                  {['Product', 'Category', 'Tracking', 'Warehouse', 'Shop', 'Total', 'Status', 'actions'].map(
                     (h) => (
                       <th
                         key={h}
                         className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                       >
-                        {h}
+                        {h === 'actions' ? '' : h}
                       </th>
                     ),
                   )}
