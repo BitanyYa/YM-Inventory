@@ -47,7 +47,122 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
-/* Dashboard / Summary Types */
+/* Category Types */
+export interface Category {
+  id: string;
+  name: string;
+  description?: string | null;
+  productCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/* Product Types */
+export interface ProductInventorySummary {
+  warehouseQuantity: number;
+  shopQuantity: number;
+  totalQuantity: number;
+}
+
+export interface SerializedUnitSummary {
+  totalAvailable: number;
+  warehouseAvailable: number;
+  shopAvailable: number;
+}
+
+export interface ProductMovementSummaryCounts {
+  stockIn: number;
+  transfers: number;
+  sales: number;
+  returns: number;
+  damages: number;
+  losses: number;
+}
+
+export interface ProductUnitItem {
+  id: string;
+  imei?: string | null;
+  serialNumber?: string | null;
+  storage?: string | null;
+  color?: string | null;
+  purchasePrice?: number | null;
+  location: Location;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ProductItem {
+  id: string;
+  name: string;
+  brand: string;
+  description?: string | null;
+  image?: string | null;
+  productType: ProductType;
+  trackingType: TrackingType;
+  sellingPrice: number;
+  minimumStock: number;
+  isActive: boolean;
+  category?: {
+    id: string;
+    name: string;
+  } | null;
+  inventory: ProductInventorySummary;
+  stockStatus: InventoryStockStatus;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface ProductDetail extends ProductItem {
+  unitSummary?: SerializedUnitSummary | null;
+  units?: ProductUnitItem[];
+  movementSummary?: ProductMovementSummaryCounts;
+}
+
+export interface ProductListResponse {
+  data: ProductItem[];
+  meta: PaginationMeta;
+}
+
+export interface ProductDetailResponse {
+  data: ProductDetail;
+}
+
+export interface QueryProductParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  productType?: ProductType | '';
+  trackingType?: TrackingType | '';
+  categoryId?: string | '';
+  isActive?: boolean | string;
+  stockStatus?: InventoryStockStatus | '';
+}
+
+export interface CreateProductRequest {
+  name: string;
+  brand: string;
+  categoryId: string;
+  productType: ProductType;
+  trackingType: TrackingType;
+  sellingPrice: number;
+  minimumStock?: number;
+  description?: string;
+  image?: string;
+}
+
+export interface UpdateProductRequest {
+  name?: string;
+  brand?: string;
+  categoryId?: string;
+  sellingPrice?: number;
+  minimumStock?: number;
+  description?: string;
+  image?: string;
+  isActive?: boolean;
+}
+
+/* Dashboard & Stock Summary Types */
 export interface InventorySummary {
   warehouseQuantity: number;
   shopQuantity: number;
@@ -109,7 +224,6 @@ export interface StockSummaryResponse {
   data: StockSummaryData;
 }
 
-/* Inventory Alert Types */
 export interface InventoryAlertProduct {
   id: string;
   name: string;
@@ -138,7 +252,6 @@ export interface InventoryAlertsResponse {
   meta: PaginationMeta;
 }
 
-/* Stock Movement Types */
 export interface StockMovementProduct {
   id: string;
   name: string;
