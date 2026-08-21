@@ -780,7 +780,7 @@ export class StockService {
         });
 
         if (units.length !== dto.unitIds.length) {
-          throw new BadRequestException(
+          throw new NotFoundException(
             'One or more requested product units were not found',
           );
         }
@@ -867,7 +867,7 @@ export class StockService {
           });
         }
 
-        returnedUnits = await tx.productUnit.findMany({
+        const rawReturnedUnits = await tx.productUnit.findMany({
           where: {
             id: { in: dto.unitIds },
           },
@@ -884,6 +884,11 @@ export class StockService {
             updatedAt: true,
           },
         });
+
+        returnedUnits = rawReturnedUnits.map((u) => ({
+          ...u,
+          purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
+        }));
 
         return {
           message: 'Stock returned successfully',

@@ -297,7 +297,7 @@ export class StockController {
   }
 
   @Post('return')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Return sold stock to Warehouse or Shop for QUANTITY or SERIALIZED products',
   })
@@ -309,6 +309,8 @@ export class StockController {
     status: 400,
     description: 'Validation error, invalid destination location, inactive product, or invalid unit status (must be SOLD)',
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Product or ProductUnit not found' })
   async returnStock(
     @Body() dto: ReturnStockDto,
