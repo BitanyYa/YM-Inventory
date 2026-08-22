@@ -1,7 +1,9 @@
 import { apiClient } from '../lib/api-client';
 import {
   InventoryListResponse,
+  InventoryProductItem,
   InventorySummaryResponse,
+  PaginationMeta,
   QueryInventoryParams,
   ReceiveStockRequest,
   TransferStockRequest,
@@ -11,10 +13,62 @@ import {
   ProductDetailResponse,
 } from '../types/api';
 
+/**
+ * Raw shape returned by GET /inventory.
+ * The backend nests product fields under a `product` key alongside
+ * `inventory`, `stockStatus`, and `unitSummary` at the top level.
+ */
+interface RawInventoryItem {
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: string;
+    trackingType: string;
+    sellingPrice: number;
+    minimumStock: number;
+    isActive: boolean;
+    description?: string | null;
+    image?: string | null;
+    category?: { id: string; name: string } | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  };
+  inventory: {
+    warehouseQuantity: number;
+    shopQuantity: number;
+    totalQuantity: number;
+  };
+  stockStatus: string;
+  unitSummary?: {
+    totalAvailable: number;
+    warehouseAvailable: number;
+    shopAvailable: number;
+  } | null;
+}
+
+interface RawInventoryListResponse {
+  data: RawInventoryItem[];
+  meta: PaginationMeta;
+}
+
+/** Flatten nested backend shape → flat InventoryProductItem */
+function flattenItem(raw: RawInventoryItem): InventoryProductItem {
+  return {
+    ...raw.product,
+    productType: raw.product.productType as InventoryProductItem['productType'],
+    trackingType: raw.product.trackingType as InventoryProductItem['trackingType'],
+    inventory: raw.inventory,
+    stockStatus: raw.stockStatus as InventoryProductItem['stockStatus'],
+    unitSummary: raw.unitSummary ?? null,
+  };
+}
+
 export const inventoryService = {
   /**
    * GET /inventory
-   * Paginated product list with live warehouse/shop quantities.
+   * Backend returns { data: [{ product, inventory, stockStatus, unitSummary }] }.
+   * We flatten each item into the InventoryProductItem shape expected by the UI.
    */
   async getInventory(params: QueryInventoryParams = {}): Promise<InventoryListResponse> {
     const q = new URLSearchParams();
@@ -26,12 +80,15 @@ export const inventoryService = {
     if (params.trackingType) q.append('trackingType', params.trackingType);
     if (params.location) q.append('location', params.location);
     if (params.stockStatus) q.append('stockStatus', params.stockStatus);
-    // Always fetch active products by default
     if (params.isActive !== undefined) {
       q.append('isActive', params.isActive.toString());
     }
     const qs = q.toString();
-    return apiClient<InventoryListResponse>(`/inventory${qs ? `?${qs}` : ''}`);
+    const raw = await apiClient<RawInventoryListResponse>(`/inventory${qs ? `?${qs}` : ''}`);
+    return {
+      data: (raw.data ?? []).map(flattenItem),
+      meta: raw.meta,
+    };
   },
 
   /**
