@@ -10,102 +10,67 @@ import { Spinner } from '../ui/Spinner';
 
 type AdjustmentType = 'DAMAGE' | 'LOSS';
 
-interface DamageLossModalProps {
+interface Props {
   isOpen: boolean;
   product: InventoryProductItem | null;
-  /** Pre-select adjustment type; user can switch in the modal */
   defaultType?: AdjustmentType;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export const DamageLossModal: React.FC<DamageLossModalProps> = ({
-  isOpen,
-  product,
-  defaultType = 'DAMAGE',
-  onClose,
-  onSuccess,
+export const DamageLossModal: React.FC<Props> = ({
+  isOpen, product, defaultType = 'DAMAGE', onClose, onSuccess,
 }) => {
-  const [adjustmentType, setAdjustmentType] = useState<AdjustmentType>(defaultType);
+  const [adjType, setAdjType] = useState<AdjustmentType>(defaultType);
   const [location, setLocation] = useState<Location>('WAREHOUSE');
   const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
-  const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeUnits, setActiveUnits] = useState<ProductUnitItem[]>([]);
-  const [isLoadingUnits, setIsLoadingUnits] = useState(false);
+  const [loadingUnits, setLoadingUnits] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isSerialized = product?.trackingType === 'SERIALIZED';
 
-  // Reload units whenever location or open state changes
   useEffect(() => {
     if (!isOpen || !product || !isSerialized) return;
-    setIsLoadingUnits(true);
-    setSelectedUnitIds([]);
-    inventoryService
-      .getProductInventoryDetail(product.id)
+    setLoadingUnits(true);
+    setSelectedIds([]);
+    inventoryService.getProductInventoryDetail(product.id)
       .then((res) => {
-        const filtered = (res.data.units ?? []).filter((u) => {
-          if (location === 'WAREHOUSE') return u.status === 'AVAILABLE' && u.location === 'WAREHOUSE';
-          return u.status === 'IN_SHOP' && u.location === 'SHOP';
-        });
-        setActiveUnits(filtered);
+        setActiveUnits((res.data.units ?? []).filter((u) =>
+          location === 'WAREHOUSE'
+            ? u.status === 'AVAILABLE' && u.location === 'WAREHOUSE'
+            : u.status === 'IN_SHOP' && u.location === 'SHOP',
+        ));
       })
       .catch(() => setActiveUnits([]))
-      .finally(() => setIsLoadingUnits(false));
+      .finally(() => setLoadingUnits(false));
   }, [isOpen, product, isSerialized, location]);
 
-  // Sync defaultType when modal reopens
-  useEffect(() => {
-    if (isOpen) setAdjustmentType(defaultType);
-  }, [isOpen, defaultType]);
+  useEffect(() => { if (isOpen) setAdjType(defaultType); }, [isOpen, defaultType]);
 
   if (!isOpen || !product) return null;
 
-  const locationQty =
-    location === 'WAREHOUSE'
-      ? product.inventory.warehouseQuantity
-      : product.inventory.shopQuantity;
+  const locationQty = location === 'WAREHOUSE' ? product.inventory.warehouseQuantity : product.inventory.shopQuantity;
 
-  const handleClose = () => {
-    setQuantity('');
-    setNote('');
-    setSelectedUnitIds([]);
-    setActiveUnits([]);
-    setError(null);
-    setLocation('WAREHOUSE');
-    onClose();
-  };
-
-  const toggleUnit = (id: string) => {
-    setSelectedUnitIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
+  const reset = () => { setQuantity(''); setNote(''); setSelectedIds([]); setActiveUnits([]); setError(null); setLocation('WAREHOUSE'); };
+  const handleClose = () => { reset(); onClose(); };
+  const toggleUnit = (id: string) => setSelectedIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
     const payload: DamageLossStockRequest = { productId: product.id, location };
 
     if (isSerialized) {
-      if (selectedUnitIds.length === 0) {
-        setError('Select at least one unit.');
-        return;
-      }
-      payload.unitIds = selectedUnitIds;
+      if (!selectedIds.length) { setError('Select at least one unit.'); return; }
+      payload.unitIds = selectedIds;
     } else {
       const qty = parseInt(quantity, 10);
-      if (!quantity || isNaN(qty) || qty < 1) {
-        setError('Quantity must be at least 1.');
-        return;
-      }
-      if (qty > locationQty) {
-        setError(`Only ${locationQty} unit(s) available at ${location.toLowerCase()}.`);
-        return;
-      }
+      if (!qty || qty < 1) { setError('Quantity must be at least 1.'); return; }
+      if (qty > locationQty) { setError(`Only ${locationQty} unit(s) at ${location.toLowerCase()}.`); return; }
       payload.quantity = qty;
     }
 
@@ -113,97 +78,75 @@ export const DamageLossModal: React.FC<DamageLossModalProps> = ({
 
     setIsLoading(true);
     try {
-      if (adjustmentType === 'DAMAGE') {
-        await inventoryService.damageStock(payload);
-      } else {
-        await inventoryService.lossStock(payload);
-      }
-      handleClose();
-      onSuccess();
+      if (adjType === 'DAMAGE') await inventoryService.damageStock(payload);
+      else await inventoryService.lossStock(payload);
+      reset(); onSuccess(); onClose();
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || 'Operation failed. Please try again.');
+      setError((err as { message?: string })?.message || 'Operation failed.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-6">
-      <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
-        onClick={handleClose}
-      />
-      <div className="relative mt-8 mb-8 w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-start justify-between border-b border-slate-100 p-5 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={handleClose} />
+
+      <div className="relative w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+        {/* header */}
+        <div className="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              Damage / Loss
-            </h3>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {product.name}
-              {product.brand ? ` · ${product.brand}` : ''}
-            </p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Damage / Loss</h3>
+            <p className="text-xs text-slate-500">{product.name}{product.brand ? ` · ${product.brand}` : ''}</p>
           </div>
-          <button
-            onClick={handleClose}
-            className="ml-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
-          >
-            <CloseIcon size={18} />
+          <button onClick={handleClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
+            <CloseIcon size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300">
-              {error}
-            </div>
-          )}
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300">
+            {error}
+          </div>
+        )}
 
-          {/* Type toggle */}
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          {/* type toggle */}
           <div className="space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Adjustment Type *
             </span>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {(['DAMAGE', 'LOSS'] as AdjustmentType[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setAdjustmentType(t)}
-                  className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-colors ${
-                    adjustmentType === t
+                <button key={t} type="button" onClick={() => setAdjType(t)}
+                  className={`rounded-lg border py-2 text-xs font-semibold transition-colors ${
+                    adjType === t
                       ? t === 'DAMAGE'
-                        ? 'border-amber-600 bg-amber-600 text-white'
+                        ? 'border-amber-500 bg-amber-500 text-white'
                         : 'border-red-600 bg-red-600 text-white'
                       : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                  }`}
-                >
+                  }`}>
                   {t === 'DAMAGE' ? 'Damaged' : 'Lost'}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Location toggle */}
+          {/* location toggle */}
           <div className="space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Location *
             </span>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {(['WAREHOUSE', 'SHOP'] as Location[]).map((loc) => (
-                <button
-                  key={loc}
-                  type="button"
-                  onClick={() => setLocation(loc)}
-                  className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-colors ${
+                <button key={loc} type="button" onClick={() => setLocation(loc)}
+                  className={`rounded-lg border py-2 text-xs font-semibold transition-colors ${
                     location === loc
                       ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
                       : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                  }`}
-                >
+                  }`}>
                   {loc}
-                  <span className={`ml-1 font-normal ${location === loc ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400'}`}>
+                  <span className={`ml-1 font-normal ${location === loc ? 'opacity-70' : 'text-slate-400'}`}>
                     ({loc === 'WAREHOUSE' ? product.inventory.warehouseQuantity : product.inventory.shopQuantity})
                   </span>
                 </button>
@@ -212,74 +155,44 @@ export const DamageLossModal: React.FC<DamageLossModalProps> = ({
           </div>
 
           {!isSerialized ? (
-            <Input
-              label={`Quantity * (max ${locationQty})`}
-              type="number"
-              min={1}
-              max={locationQty}
-              placeholder="e.g. 1"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-            />
-          ) : isLoadingUnits ? (
-            <div className="flex items-center justify-center py-8">
-              <Spinner size="md" />
-            </div>
+            <Input label={`Quantity * (max ${locationQty})`} type="number" min={1} max={locationQty}
+              placeholder="e.g. 1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
+          ) : loadingUnits ? (
+            <div className="flex justify-center py-6"><Spinner size="md" /></div>
           ) : activeUnits.length === 0 ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300">
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/60 dark:text-amber-300">
               No active units at {location.toLowerCase()}.
             </p>
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Select Units ({selectedUnitIds.length}/{activeUnits.length})
+                  Select Units ({selectedIds.length}/{activeUnits.length})
                 </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelectedUnitIds(
-                      selectedUnitIds.length === activeUnits.length
-                        ? []
-                        : activeUnits.map((u) => u.id),
-                    )
-                  }
-                  className="text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400"
-                >
-                  {selectedUnitIds.length === activeUnits.length ? 'Deselect All' : 'Select All'}
+                <button type="button"
+                  onClick={() => setSelectedIds(selectedIds.length === activeUnits.length ? [] : activeUnits.map((u) => u.id))}
+                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400">
+                  {selectedIds.length === activeUnits.length ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
-              <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
+              <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
                 {activeUnits.map((unit) => {
-                  const selected = selectedUnitIds.includes(unit.id);
+                  const sel = selectedIds.includes(unit.id);
                   return (
-                    <button
-                      key={unit.id}
-                      type="button"
-                      onClick={() => toggleUnit(unit.id)}
-                      className={`w-full flex items-start gap-2.5 rounded-lg border p-2.5 text-left text-xs transition-colors ${
-                        selected
+                    <button key={unit.id} type="button" onClick={() => toggleUnit(unit.id)}
+                      className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs transition-colors ${
+                        sel
                           ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
                           : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`mt-0.5 h-3.5 w-3.5 shrink-0 rounded border ${
-                          selected
-                            ? 'border-white bg-white dark:border-slate-900 dark:bg-slate-900'
-                            : 'border-slate-400'
-                        }`}
-                      />
+                      }`}>
+                      <span className={`h-3.5 w-3.5 shrink-0 rounded border ${sel ? 'border-white bg-white dark:border-slate-900 dark:bg-slate-900' : 'border-slate-400'}`} />
                       <span className="min-w-0">
-                        <span className="block font-semibold truncate">
+                        <span className="block truncate font-semibold">
                           {unit.imei ?? unit.serialNumber ?? unit.id.slice(0, 8)}
                         </span>
                         {(unit.storage || unit.color) && (
-                          <span className={`block ${selected ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400'}`}>
-                            {[unit.storage ? `${unit.storage}GB` : null, unit.color]
-                              .filter(Boolean)
-                              .join(' · ')}
+                          <span className={sel ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400'}>
+                            {[unit.storage ? `${unit.storage}GB` : null, unit.color].filter(Boolean).join(' · ')}
                           </span>
                         )}
                       </span>
@@ -291,29 +204,18 @@ export const DamageLossModal: React.FC<DamageLossModalProps> = ({
           )}
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Note (Optional)
-            </label>
-            <textarea
-              rows={2}
-              className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-              placeholder={adjustmentType === 'DAMAGE' ? 'e.g. Screen cracked during handling' : 'e.g. Missing from last stock count'}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Note (Optional)</label>
+            <textarea rows={2}
+              className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              placeholder={adjType === 'DAMAGE' ? 'e.g. Screen cracked during handling' : 'e.g. Missing from stock count'}
+              value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-1">
-            <Button variant="secondary" type="button" onClick={handleClose} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              type="submit"
-              isLoading={isLoading}
-              disabled={isSerialized && activeUnits.length === 0}
-            >
-              Record {adjustmentType === 'DAMAGE' ? 'Damage' : 'Loss'}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button variant="secondary" type="button" onClick={handleClose} disabled={isLoading}>Cancel</Button>
+            <Button variant="danger" type="submit" isLoading={isLoading}
+              disabled={isSerialized && activeUnits.length === 0}>
+              Record {adjType === 'DAMAGE' ? 'Damage' : 'Loss'}
             </Button>
           </div>
         </form>
