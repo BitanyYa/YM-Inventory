@@ -672,9 +672,7 @@ export default function InventoryPage() {
 
       {/* ── stock operation modals ── */}
 
-      {/* header-level receive (no product pre-selected — only used if admin wants global receive) */}
-      {/* We reuse ReceiveStockModal but it requires a product, so the header button stays disabled
-          until we have a product-picker flow. For now it opens the modal with null which returns null. */}
+      {/* header "Receive Stock": product=null triggers product-search phase */}
       <ReceiveStockModal
         isOpen={isReceiveOpen}
         product={null}
@@ -682,6 +680,7 @@ export default function InventoryPage() {
         onSuccess={() => { showSuccess('Stock received.'); fetchInventory(); fetchSummary(); }}
       />
 
+      {/* row-level "Receive Stock": product pre-selected, goes straight to form */}
       <ReceiveStockModal
         isOpen={activeModal === 'receive'}
         product={selectedProduct}
