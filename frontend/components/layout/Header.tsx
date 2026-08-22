@@ -24,32 +24,29 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 w-full items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+    <header className="sticky top-0 z-30 flex h-12 w-full items-center justify-between border-b border-[#E8E8ED] bg-white/95 px-4 backdrop-blur-md dark:border-[#2C2C2E] dark:bg-[#1C1C1E]/95">
       <div className="flex items-center gap-2">
         <button
           onClick={onOpenMobileMenu}
-          className="rounded p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden"
+          className="rounded p-1.5 text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#1D1D1F] lg:hidden dark:hover:bg-[#2C2C2E]"
           aria-label="Open menu"
         >
           <MenuIcon size={18} />
         </button>
-        <h1 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+        <h1 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
           {getPageTitle(pathname)}
         </h1>
       </div>
 
       <div className="flex items-center gap-3">
         {user && (
-          <span className="hidden text-xs text-slate-500 sm:block">
-            {user.name}
-          </span>
+          <span className="hidden text-xs text-[#6E6E73] sm:block">{user.name}</span>
         )}
         <Button
           variant="ghost"
           size="sm"
           onClick={logout}
           leftIcon={<LogoutIcon size={14} />}
-          className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
         >
           <span className="hidden sm:inline text-xs">Logout</span>
         </Button>

@@ -21,36 +21,40 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   ...props
 }) => {
-  const baseStyles =
+  const base =
     'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed select-none';
 
-  const variantStyles = {
+  const variants = {
+    /* Apple Blue — primary action */
     primary:
-      'bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200',
+      'bg-[#0071E3] text-white hover:bg-[#0077ED] focus:ring-[#0071E3]/40 active:bg-[#006CD6]',
+    /* Apple system gray — secondary/tonal */
     secondary:
-      'bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-300 focus:ring-slate-400 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700',
+      'bg-white text-[#1D1D1F] border border-[#D2D2D7] hover:bg-[#F5F5F7] focus:ring-[#0071E3]/30 active:bg-[#E8E8ED] dark:bg-[#2C2C2E] dark:text-[#F5F5F7] dark:border-[#38383A] dark:hover:bg-[#3A3A3C]',
+    /* Apple Red */
     danger:
-      'bg-red-600 text-white hover:bg-red-700 focus:ring-red-600 dark:bg-red-700 dark:hover:bg-red-600',
+      'bg-[#FF3B30] text-white hover:bg-[#E6362B] focus:ring-[#FF3B30]/40 active:bg-[#CC302B]',
+    /* Ghost — no background */
     ghost:
-      'bg-transparent text-slate-700 hover:bg-slate-100 focus:ring-slate-300 dark:text-slate-300 dark:hover:bg-slate-800',
+      'bg-transparent text-[#6E6E73] hover:bg-[#F5F5F7] hover:text-[#1D1D1F] focus:ring-[#0071E3]/30 dark:text-[#98989D] dark:hover:bg-[#2C2C2E] dark:hover:text-[#F5F5F7]',
   };
 
-  const sizeStyles = {
+  const sizes = {
     sm: 'px-3 py-1.5 text-xs gap-1.5',
     md: 'px-4 py-2 text-sm gap-2',
-    lg: 'px-5 py-2.5 text-base gap-2.5',
+    lg: 'px-5 py-2.5 text-[15px] gap-2',
   };
 
   return (
     <button
-      className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled || isLoading}
       {...props}
     >
       {isLoading ? (
         <>
-          <Spinner size="sm" className="mr-1.5" />
-          <span>Loading...</span>
+          <Spinner size="sm" className="mr-1" />
+          <span>Loading…</span>
         </>
       ) : (
         <>

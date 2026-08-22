@@ -13,26 +13,32 @@ export const Badge: React.FC<BadgeProps> = ({
   size = 'md',
   className = '',
 }) => {
-  const variantClasses = {
+  const variants = {
+    /* Apple gray */
     neutral:
-      'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
+      'bg-[#E8E8ED] text-[#1D1D1F] dark:bg-[#3A3A3C] dark:text-[#F5F5F7]',
+    /* Apple green */
     success:
-      'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
+      'bg-[#E9F9EE] text-[#1A7A3A] dark:bg-[#0A2E1A] dark:text-[#30D158]',
+    /* Apple orange */
     warning:
-      'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
+      'bg-[#FFF4E0] text-[#995E00] dark:bg-[#2E1E00] dark:text-[#FF9F0A]',
+    /* Apple red */
     danger:
-      'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
-    info: 'bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800',
+      'bg-[#FFECEB] text-[#CC2B22] dark:bg-[#2E0A09] dark:text-[#FF453A]',
+    /* Apple blue/teal */
+    info:
+      'bg-[#EBF8FE] text-[#005A99] dark:bg-[#00263A] dark:text-[#5AC8FA]',
   };
 
-  const sizeClasses = {
-    sm: 'px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase',
-    md: 'px-2.5 py-1 text-xs font-semibold tracking-wide uppercase',
+  const sizes = {
+    sm: 'px-1.5 py-0.5 text-[10px] font-semibold tracking-wide',
+    md: 'px-2 py-0.5 text-xs font-semibold tracking-wide',
   };
 
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-md border ${sizeClasses[size]} ${variantClasses[variant]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-md ${sizes[size]} ${variants[variant]} ${className}`}
     >
       {children}
     </span>

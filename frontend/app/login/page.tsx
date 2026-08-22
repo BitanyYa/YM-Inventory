@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
-import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { AlertTriangleIcon } from '../../components/ui/Icons';
@@ -18,71 +17,63 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.push('/');
-    }
+    if (!isLoading && isAuthenticated) router.push('/');
   }, [isLoading, isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-
-    if (!email.trim()) {
-      setErrorMessage('Please enter your email address.');
-      return;
-    }
-    if (!password) {
-      setErrorMessage('Please enter your password.');
-      return;
-    }
+    if (!email.trim()) { setErrorMessage('Please enter your email address.'); return; }
+    if (!password) { setErrorMessage('Please enter your password.'); return; }
 
     setIsSubmitting(true);
     try {
       await login({ email: email.trim(), password });
       router.push('/');
-    } catch (err: any) {
-      const message =
-        err?.message || 'Invalid credentials. Please check your email and password.';
-      setErrorMessage(message);
+    } catch (err: unknown) {
+      setErrorMessage(
+        (err as { message?: string })?.message ??
+        'Invalid credentials. Please check your email and password.',
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isLoading || isAuthenticated) {
-    return null;
-  }
+  if (isLoading || isAuthenticated) return null;
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-6">
-        {/* Brand Header */}
+    <div className="flex min-h-screen w-full items-center justify-center bg-[#F5F5F7] px-4 py-12 sm:px-6">
+      <div className="w-full max-w-[400px] space-y-5">
+
+        {/* brand */}
         <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-white font-bold text-xl dark:bg-slate-100 dark:text-slate-900 shadow-md">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0071E3] text-white font-bold text-xl shadow-md">
             YM
           </div>
-          <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Sign in to YM Inventory
+          <h2 className="mt-4 text-2xl font-semibold text-[#1D1D1F]">
+            YM Inventory
           </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Stock Management & Product Tracking System
+          <p className="mt-1 text-sm text-[#6E6E73]">
+            Sign in to your account
           </p>
         </div>
 
-        {/* Login Form Card */}
-        <Card className="shadow-sm">
+        {/* form card */}
+        <div className="rounded-2xl border border-[#D2D2D7] bg-white px-6 py-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
+
             {errorMessage && (
-              <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300">
-                <AlertTriangleIcon size={16} className="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+              <div className="flex items-start gap-2 rounded-lg border border-[#FF3B30]/30 bg-[#FFECEB] px-3 py-2.5 text-xs text-[#CC2B22]">
+                <AlertTriangleIcon size={14} className="mt-0.5 shrink-0 text-[#FF3B30]" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
             <Input
-              label="Email Address"
+              label="Email"
               type="email"
-              placeholder="admin@yonasmobile.com"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -103,18 +94,17 @@ export default function LoginPage() {
               type="submit"
               variant="primary"
               size="lg"
-              className="w-full mt-2"
+              className="mt-1 w-full"
               isLoading={isSubmitting}
             >
               Sign In
             </Button>
           </form>
-        </Card>
-
-        {/* Footer Note */}
-        <div className="text-center text-xs text-slate-400 dark:text-slate-500">
-          Internal inventory access only. Contact administrator if locked out.
         </div>
+
+        <p className="text-center text-xs text-[#86868B]">
+          Internal access only — contact your administrator if locked out.
+        </p>
       </div>
     </div>
   );
