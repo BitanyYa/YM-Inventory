@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import { inventoryService } from '../../services/inventory.service';
@@ -65,6 +65,60 @@ interface ActionMenuProps {
 
 function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const updateCoords = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuHeight = 220;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const right = window.innerWidth - rect.right;
+
+      if (spaceBelow < menuHeight && rect.top > menuHeight) {
+        setCoords({
+          bottom: window.innerHeight - rect.top + 4,
+          right,
+        });
+      } else {
+        setCoords({
+          top: rect.bottom + 4,
+          right,
+        });
+      }
+    }
+  }, []);
+
+  const toggle = () => {
+    if (!open) {
+      updateCoords();
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleScrollOrResize = () => setOpen(false);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
 
   const items = [
     { label: 'Receive Stock', type: 'receive' as ModalType, adminOnly: true },
@@ -75,28 +129,39 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
   ].filter((a) => !a.adminOnly || isAdmin);
 
   return (
-    <div className="relative">
+    <>
       <Button
+        ref={buttonRef}
         variant="secondary"
         size="sm"
-        onClick={() => setOpen((o) => !o)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onClick={toggle}
       >
         Manage ▾
       </Button>
-      {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-xl border border-[#E8E8ED] bg-white shadow-lg dark:border-[#38383A] dark:bg-[#1C1C1E]">
+      {open && coords && (
+        <div
+          style={{
+            position: 'fixed',
+            top: coords.top !== undefined ? `${coords.top}px` : undefined,
+            bottom: coords.bottom !== undefined ? `${coords.bottom}px` : undefined,
+            right: `${coords.right}px`,
+          }}
+          className="z-50 w-44 overflow-hidden rounded-xl border border-[#E8E8ED] bg-white shadow-xl dark:border-[#38383A] dark:bg-[#1C1C1E]"
+        >
           <Link
             href={`/products/${product.id}`}
             className="block px-4 py-2.5 text-left text-xs font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]"
-            onMouseDown={() => setOpen(false)}
+            onClick={() => setOpen(false)}
           >
             View Product
           </Link>
           {items.map((a) => (
             <button
               key={a.type}
-              onMouseDown={() => { setOpen(false); onAction(a.type, product); }}
+              onClick={() => {
+                setOpen(false);
+                onAction(a.type, product);
+              }}
               className={`block w-full px-4 py-2.5 text-left text-xs font-medium transition-colors ${
                 a.danger
                   ? 'text-[#FF3B30] hover:bg-[#FFECEB] dark:text-[#FF453A] dark:hover:bg-[#2E0A09]'
@@ -108,7 +173,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -456,8 +521,9 @@ export default function InventoryPage() {
               ) : (
                 <>
                   {/* desktop table */}
-                  <div className="hidden overflow-x-auto md:block">
-                    <table className="w-full text-xs">
+                  <div className="hidden md:block">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-xs" style={{ minWidth: '640px' }}>
                       <thead>
                         <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
                           {['Product', 'Category', 'WH', 'Shop', 'Total', 'Status', 'Tracking', ''].map((h) => (
@@ -499,7 +565,8 @@ export default function InventoryPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                    </div>{/* /overflow-x-auto */}
+                  </div>{/* /md:block */}
 
                   {/* mobile cards */}
                   <div className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden">
