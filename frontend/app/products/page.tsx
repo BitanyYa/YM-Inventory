@@ -6,15 +6,10 @@ import { useAuth } from '../../context/AuthContext';
 import { productService } from '../../services/product.service';
 import { categoryService } from '../../services/category.service';
 import {
-  Category,
-  ProductItem,
-  PaginationMeta,
-  ProductType,
-  TrackingType,
-  InventoryStockStatus,
+  Category, ProductItem, PaginationMeta,
+  ProductType, TrackingType, InventoryStockStatus,
 } from '../../types/api';
 import { AppShell } from '../../components/layout/AppShell';
-import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { CreateProductModal } from '../../components/products/CreateProductModal';
@@ -22,607 +17,340 @@ import { EditProductModal } from '../../components/products/EditProductModal';
 import { CreateCategoryModal } from '../../components/categories/CreateCategoryModal';
 import { EditCategoryModal } from '../../components/categories/EditCategoryModal';
 import { formatCurrency } from '../../lib/utils';
-import { ProductsIcon, SearchIcon } from '../../components/ui/Icons';
+import { SearchIcon, AlertTriangleIcon } from '../../components/ui/Icons';
+
+function StockBadge({ status }: { status: InventoryStockStatus }) {
+  if (status === 'IN_STOCK') return <Badge variant="success" size="sm">In Stock</Badge>;
+  if (status === 'LOW_STOCK') return <Badge variant="warning" size="sm">Low</Badge>;
+  return <Badge variant="danger" size="sm">Out</Badge>;
+}
+
+function SkelRow() {
+  return (
+    <tr>
+      {[45, 25, 20, 14, 14, 14, 18, 16, 10].map((w, i) => (
+        <td key={i} className="px-3 py-2.5">
+          <div className="h-3.5 animate-pulse rounded bg-slate-100 dark:bg-slate-800" style={{ width: `${w}%` }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
 
 export default function ProductsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'PRIMARY_ADMIN';
 
-  // Data State
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-  });
+  const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  // Filter State
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [productType, setProductType] = useState<ProductType | ''>('');
   const [trackingType, setTrackingType] = useState<TrackingType | ''>('');
-  const [categoryId, setCategoryId] = useState<string>('');
-  const [isActiveFilter, setIsActiveFilter] = useState<string>('true'); // 'true', 'false', 'all'
+  const [categoryId, setCategoryId] = useState('');
+  const [isActiveFilter, setIsActiveFilter] = useState('true');
   const [stockStatusFilter, setStockStatusFilter] = useState<InventoryStockStatus | ''>('');
   const [page, setPage] = useState(1);
 
-  // UI State
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
-  // Modal States
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
-
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
-  // Debounce search input
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(handler);
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
+    return () => clearTimeout(t);
   }, [search]);
 
-  // Load categories dynamically
   const fetchCategories = useCallback(async () => {
-    try {
-      const data = await categoryService.getCategories();
-      setCategories(data || []);
-    } catch (err) {
-      console.error('Failed to load categories:', err);
-    }
+    try { setCategories((await categoryService.getCategories()) ?? []); }
+    catch { /* non-critical */ }
   }, []);
 
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
-  // Fetch Products
   const fetchProducts = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true); setError(null);
     try {
-      let activeVal: boolean | string | undefined = undefined;
-      if (isActiveFilter === 'true') activeVal = true;
-      if (isActiveFilter === 'false') activeVal = false;
-
+      const isActive = isActiveFilter === 'true' ? true : isActiveFilter === 'false' ? false : undefined;
       const res = await productService.getProducts({
-        page,
-        limit: 10,
+        page, limit: 25,
         search: debouncedSearch,
         productType: productType || undefined,
         trackingType: trackingType || undefined,
         categoryId: categoryId || undefined,
-        isActive: activeVal,
+        isActive,
         stockStatus: stockStatusFilter || undefined,
       });
-
-      setProducts(res.data || []);
+      setProducts(res.data ?? []);
       setMeta(res.meta);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load products.');
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (e: unknown) {
+      setError((e as { message?: string })?.message ?? 'Failed to load products.');
+    } finally { setIsLoading(false); }
   }, [page, debouncedSearch, productType, trackingType, categoryId, isActiveFilter, stockStatusFilter]);
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
-  const handleCreateProductSuccess = () => {
-    setSuccessBanner('Product created successfully!');
-    fetchProducts();
-    fetchCategories();
-    setTimeout(() => setSuccessBanner(null), 4000);
-  };
-
-  const handleEditProductSuccess = () => {
-    setSuccessBanner('Product updated successfully!');
-    fetchProducts();
-    fetchCategories();
-    setTimeout(() => setSuccessBanner(null), 4000);
-  };
-
-  const handleCreateCategorySuccess = (newCategory: Category) => {
-    setSuccessBanner(`Category "${newCategory.name}" created successfully!`);
-    fetchCategories();
-    setCategoryId(newCategory.id);
-    setPage(1);
-    setTimeout(() => setSuccessBanner(null), 4000);
-  };
-
-  const handleEditCategorySuccess = (updatedCategory: Category) => {
-    setSuccessBanner(`Category "${updatedCategory.name}" updated successfully!`);
-    fetchCategories();
-    fetchProducts();
-    setTimeout(() => setSuccessBanner(null), 4000);
-  };
-
-  const resetFilters = () => {
-    setSearch('');
-    setProductType('');
-    setTrackingType('');
-    setCategoryId('');
-    setIsActiveFilter('true');
-    setStockStatusFilter('');
-    setPage(1);
-  };
-
-  const getStockStatusBadge = (status: InventoryStockStatus) => {
-    switch (status) {
-      case 'IN_STOCK':
-        return <Badge variant="success" size="sm">IN STOCK</Badge>;
-      case 'LOW_STOCK':
-        return <Badge variant="warning" size="sm">LOW STOCK</Badge>;
-      case 'OUT_OF_STOCK':
-        return <Badge variant="danger" size="sm">OUT OF STOCK</Badge>;
-      default:
-        return null;
-    }
-  };
+  const showSuccess = (msg: string) => { setSuccessBanner(msg); setTimeout(() => setSuccessBanner(null), 4000); };
+  const resetFilters = () => { setSearch(''); setProductType(''); setTrackingType(''); setCategoryId(''); setIsActiveFilter('true'); setStockStatusFilter(''); setPage(1); };
+  const hasFilters = !!(debouncedSearch || productType || trackingType || categoryId || stockStatusFilter || isActiveFilter !== 'true');
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        {/* Header Bar */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-3">
+
+        {/* ── header ── */}
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
-              Products & Repair Inventory
-            </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Manage phones, repair parts (Screens, ICs, Batteries), and accessories.
+            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Products</h2>
+            <p className="text-xs text-slate-500">
+              {meta.total} product{meta.total !== 1 ? 's' : ''}{hasFilters ? ' (filtered)' : ''}
             </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && (
-              <>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setIsCreateCategoryOpen(true)}
-                >
-                  + Add Category
-                </Button>
-
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={() => setIsCreateProductOpen(true)}
-                >
-                  + Add Product
-                </Button>
-              </>
-            )}
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setIsCreateCategoryOpen(true)}>
+                + Category
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => setIsCreateProductOpen(true)}>
+                + Product
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Dynamic Category Navigation Bar / Pill Filters */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
-          <button
-            onClick={() => {
-              setCategoryId('');
-              setPage(1);
-            }}
-            className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
-              categoryId === ''
-                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
-                : 'bg-white text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            <span>All Products</span>
-          </button>
+        {/* ── banners ── */}
+        {successBanner && (
+          <div className="flex items-center justify-between rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200">
+            <span>{successBanner}</span>
+            <button onClick={() => setSuccessBanner(null)} className="font-bold">✕</button>
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300">
+            <div className="flex items-center gap-2"><AlertTriangleIcon size={14} />{error}</div>
+            <Button variant="secondary" size="sm" onClick={fetchProducts}>Retry</Button>
+          </div>
+        )}
 
-          {categories.map((cat) => (
+        {/* ── category pills ── */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+          {[{ id: '', name: 'All' }, ...categories].map((cat) => (
             <button
               key={cat.id}
-              onClick={() => {
-                setCategoryId(cat.id);
-                setPage(1);
-              }}
-              className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
+              onClick={() => { setCategoryId(cat.id); setPage(1); }}
+              className={`shrink-0 rounded px-3 py-1 text-xs font-semibold transition-colors ${
                 categoryId === cat.id
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
-              <span>{cat.name}</span>
-              {cat.productCount !== undefined && (
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                    categoryId === cat.id
-                      ? 'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900'
-                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                  }`}
-                >
+              {cat.name}
+              {'productCount' in cat && cat.productCount !== undefined && (
+                <span className={`ml-1.5 text-[10px] ${categoryId === cat.id ? 'opacity-75' : 'text-slate-400'}`}>
                   {cat.productCount}
                 </span>
               )}
             </button>
           ))}
+          {isAdmin && (
+            <button
+              onClick={() => setIsCreateCategoryOpen(true)}
+              className="shrink-0 rounded border border-dashed border-slate-300 px-3 py-1 text-xs font-medium text-slate-400 hover:border-slate-400 hover:text-slate-600 dark:border-slate-700 dark:hover:border-slate-500"
+            >
+              + New
+            </button>
+          )}
         </div>
 
-        {/* Success Banner */}
-        {successBanner && (
-          <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-xs font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200">
-            <span>{successBanner}</span>
-            <button onClick={() => setSuccessBanner(null)} className="font-bold text-emerald-700 dark:text-emerald-300">
-              ✕
-            </button>
+        {/* ── filter bar ── */}
+        <div className="flex flex-col gap-2 rounded border border-slate-200 bg-white p-2.5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products..."
+              className="w-full rounded border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            />
           </div>
-        )}
-
-        {/* Error Banner */}
-        {error && (
-          <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300">
-            <span>{error}</span>
-            <Button variant="secondary" size="sm" onClick={fetchProducts}>
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {/* Search & Filter Bar Card */}
-        <Card className="p-4">
-          <div className="flex flex-col gap-3.5">
-            {/* Search Input */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by product name, repair component, or brand (e.g. Samsung A15 Screen)..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white pl-10 pr-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-slate-400"
-              />
-              <SearchIcon size={18} className="absolute left-3 top-2.5 text-slate-400" />
-            </div>
-
-            {/* Filter Dropdowns */}
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-              {/* Category Dropdown Filter */}
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              {
+                value: productType, onChange: (v: string) => { setProductType(v as ProductType | ''); setPage(1); },
+                options: [
+                  ['', 'All Types'], ['PHONE', 'Phone'], ['ACCESSORY', 'Accessory'],
+                  ['TABLET', 'Tablet'], ['LAPTOP', 'Laptop'], ['SMART_WATCH', 'Smart Watch'], ['OTHER', 'Other'],
+                ],
+              },
+              {
+                value: trackingType, onChange: (v: string) => { setTrackingType(v as TrackingType | ''); setPage(1); },
+                options: [['', 'All Tracking'], ['QUANTITY', 'Quantity'], ['SERIALIZED', 'Serialized']],
+              },
+              {
+                value: stockStatusFilter, onChange: (v: string) => { setStockStatusFilter(v as InventoryStockStatus | ''); setPage(1); },
+                options: [['', 'All Status'], ['IN_STOCK', 'In Stock'], ['LOW_STOCK', 'Low Stock'], ['OUT_OF_STOCK', 'Out of Stock']],
+              },
+              {
+                value: isActiveFilter, onChange: (v: string) => { setIsActiveFilter(v); setPage(1); },
+                options: [['true', 'Active'], ['false', 'Inactive'], ['all', 'All']],
+              },
+            ].map((sel, i) => (
               <select
-                value={categoryId}
-                onChange={(e) => {
-                  setCategoryId(e.target.value);
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                key={i}
+                value={sel.value}
+                onChange={(e) => sel.onChange(e.target.value)}
+                className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               >
-                <option value="">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {sel.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
-
-              {/* Product Type Filter */}
-              <select
-                value={productType}
-                onChange={(e) => {
-                  setProductType(e.target.value as ProductType | '');
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <option value="">All Types</option>
-                <option value="ACCESSORY">Accessory / Repair</option>
-                <option value="PHONE">Phone</option>
-                <option value="TABLET">Tablet</option>
-                <option value="LAPTOP">Laptop</option>
-                <option value="SMART_WATCH">Smart Watch</option>
-                <option value="OTHER">Other</option>
-              </select>
-
-              {/* Tracking Type Filter */}
-              <select
-                value={trackingType}
-                onChange={(e) => {
-                  setTrackingType(e.target.value as TrackingType | '');
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <option value="">All Tracking</option>
-                <option value="QUANTITY">Quantity</option>
-                <option value="SERIALIZED">Serialized</option>
-              </select>
-
-              {/* Active Status Filter */}
-              <select
-                value={isActiveFilter}
-                onChange={(e) => {
-                  setIsActiveFilter(e.target.value);
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <option value="true">Active Only</option>
-                <option value="false">Inactive Only</option>
-                <option value="all">All Statuses</option>
-              </select>
-
-              {/* Stock Health Filter */}
-              <select
-                value={stockStatusFilter}
-                onChange={(e) => {
-                  setStockStatusFilter(e.target.value as InventoryStockStatus | '');
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <option value="">All Stock Health</option>
-                <option value="IN_STOCK">In Stock</option>
-                <option value="LOW_STOCK">Low Stock</option>
-                <option value="OUT_OF_STOCK">Out of Stock</option>
-              </select>
-            </div>
-          </div>
-        </Card>
-
-        {/* Products Table Card */}
-        <Card className="p-0 overflow-hidden">
-          {isLoading ? (
-            <div className="space-y-3 p-6">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="h-12 w-full animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800"
-                />
-              ))}
-            </div>
-          ) : products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                <ProductsIcon size={24} />
-              </div>
-              <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-slate-100">
-                No products found
-              </h3>
-              <p className="mt-1 max-w-sm text-xs text-slate-500">
-                No inventory items match your current search and category filters.
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
+            ))}
+            {hasFilters && (
+              <button
                 onClick={resetFilters}
-                className="mt-4 text-xs"
+                className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
               >
-                Reset All Filters
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Desktop Table */}
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── table ── */}
+        <div className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          {/* desktop */}
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60">
+                  {['Product', 'Category', 'Type', 'WH', 'Shop', 'Total', 'Status', 'Price', ''].map((h) => (
+                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {isLoading
+                  ? Array.from({ length: 8 }).map((_, i) => <SkelRow key={i} />)
+                  : products.length === 0
+                  ? (
                     <tr>
-                      <th className="px-6 py-3.5">Item & Brand</th>
-                      <th className="px-4 py-3.5">Category</th>
-                      <th className="px-4 py-3.5 text-center">Current Stock</th>
-                      <th className="px-4 py-3.5 text-center">Health</th>
-                      <th className="px-4 py-3.5 text-right">Selling Price</th>
-                      <th className="px-4 py-3.5 text-center">Tracking</th>
-                      <th className="px-4 py-3.5 text-center">Status</th>
-                      <th className="px-6 py-3.5 text-right">Actions</th>
+                      <td colSpan={9} className="px-4 py-10 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <AlertTriangleIcon size={20} className="text-slate-300" />
+                          <p className="text-xs font-medium text-slate-500">No products found</p>
+                          {hasFilters && <button onClick={resetFilters} className="text-xs text-slate-700 underline">Clear filters</button>}
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {products.map((product) => (
-                      <tr
-                        key={product.id}
-                        className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-900/60"
-                      >
-                        <td className="px-6 py-4">
-                          <Link
-                            href={`/products/${product.id}`}
-                            className="font-semibold text-slate-900 hover:underline dark:text-slate-100"
-                          >
-                            {product.name}
-                          </Link>
-                          <span className="block text-xs text-slate-500">
-                            {product.brand}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-xs font-medium text-slate-700 dark:text-slate-300">
-                          {product.category?.name || '—'}
-                        </td>
-                        <td className="px-4 py-4 text-center font-bold text-slate-900 dark:text-slate-100">
-                          {product.inventory?.totalQuantity || 0}
-                          <span className="block text-[10px] font-normal text-slate-500">
-                            (WH: {product.inventory?.warehouseQuantity || 0} / Shop: {product.inventory?.shopQuantity || 0})
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          {getStockStatusBadge(product.stockStatus)}
-                        </td>
-                        <td className="px-4 py-4 text-right font-semibold text-slate-900 dark:text-slate-100">
-                          {formatCurrency(product.sellingPrice)}
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <Badge
-                            variant={
-                              product.trackingType === 'SERIALIZED'
-                                ? 'info'
-                                : 'neutral'
-                            }
-                            size="sm"
-                          >
-                            {product.trackingType}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <Badge
-                            variant={product.isActive ? 'success' : 'neutral'}
-                            size="sm"
-                          >
-                            {product.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Link href={`/products/${product.id}`}>
-                              <Button variant="ghost" size="sm">
-                                View
-                              </Button>
-                            </Link>
-                            {isAdmin && (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setEditingProduct(product)}
-                              >
-                                Edit
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card Items */}
-              <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
-                {products.map((product) => (
-                  <div key={product.id} className="p-4 space-y-2.5">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <Link
-                          href={`/products/${product.id}`}
-                          className="font-bold text-sm text-slate-900 hover:underline dark:text-slate-100"
-                        >
-                          {product.name}
+                  )
+                  : products.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                      <td className="px-3 py-2.5">
+                        <Link href={`/products/${p.id}`} className="font-semibold text-slate-900 hover:underline dark:text-slate-100">
+                          {p.name}
                         </Link>
-                        <span className="block text-xs text-slate-500">
-                          {product.brand} • {product.category?.name || 'Uncategorized'}
-                        </span>
-                      </div>
-                      {getStockStatusBadge(product.stockStatus)}
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2.5 text-xs dark:bg-slate-950">
-                      <div>
-                        <span className="text-slate-500 block text-[10px] uppercase font-semibold">Total Stock</span>
-                        <strong className="text-sm text-slate-900 dark:text-slate-100">
-                          {product.inventory?.totalQuantity || 0} units
-                        </strong>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-slate-500 block text-[10px] uppercase font-semibold">Selling Price</span>
-                        <strong className="text-sm text-slate-900 dark:text-slate-100">
-                          {formatCurrency(product.sellingPrice)}
-                        </strong>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs pt-1">
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant="neutral" size="sm">
-                          {product.productType}
+                        <span className="block text-[11px] text-slate-400">{p.brand}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400">{p.category?.name ?? '—'}</td>
+                      <td className="px-3 py-2.5">
+                        <Badge variant={p.trackingType === 'SERIALIZED' ? 'info' : 'neutral'} size="sm">
+                          {p.trackingType === 'SERIALIZED' ? 'Serial' : 'Qty'}
                         </Badge>
-                        <Badge
-                          variant={
-                            product.trackingType === 'SERIALIZED'
-                              ? 'info'
-                              : 'neutral'
-                          }
-                          size="sm"
-                        >
-                          {product.trackingType}
-                        </Badge>
-                      </div>
-                      <Badge variant={product.isActive ? 'success' : 'neutral'} size="sm">
-                        {product.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </div>
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums font-semibold text-slate-800 dark:text-slate-200">{p.inventory.warehouseQuantity}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-semibold text-slate-800 dark:text-slate-200">{p.inventory.shopQuantity}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-bold text-slate-900 dark:text-slate-100">{p.inventory.totalQuantity}</td>
+                      <td className="px-3 py-2.5"><StockBadge status={p.stockStatus} /></td>
+                      <td className="px-3 py-2.5 tabular-nums text-slate-700 dark:text-slate-300">{formatCurrency(p.sellingPrice)}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/products/${p.id}`}>
+                            <Button variant="ghost" size="sm">View</Button>
+                          </Link>
+                          {isAdmin && (
+                            <Button variant="secondary" size="sm" onClick={() => setEditingProduct(p)}>Edit</Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
-                      <Link href={`/products/${product.id}`}>
-                        <Button variant="ghost" size="sm">
-                          View Details
-                        </Button>
-                      </Link>
-                      {isAdmin && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setEditingProduct(product)}
-                        >
-                          Edit
-                        </Button>
-                      )}
-                    </div>
+          {/* mobile */}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="animate-pulse p-3 space-y-1.5">
+                  <div className="h-3.5 w-3/5 rounded bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-3 w-2/5 rounded bg-slate-100 dark:bg-slate-800" />
+                </div>
+              ))
+            ) : products.map((p) => (
+              <div key={p.id} className="p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <Link href={`/products/${p.id}`} className="text-sm font-semibold text-slate-900 hover:underline dark:text-slate-100">
+                      {p.name}
+                    </Link>
+                    <p className="text-[11px] text-slate-400">{p.brand} · {p.category?.name ?? 'Uncategorized'}</p>
                   </div>
-                ))}
-              </div>
-
-              {/* Pagination Footer */}
-              <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-3.5 dark:border-slate-800 dark:bg-slate-950/60">
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Showing page {meta.page} of {meta.totalPages || 1} ({meta.total} items total)
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={meta.page <= 1 || isLoading}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={meta.page >= meta.totalPages || isLoading}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    Next
-                  </Button>
+                  <StockBadge status={p.stockStatus} />
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-slate-500">WH: <strong className="text-slate-800 dark:text-slate-200">{p.inventory.warehouseQuantity}</strong></span>
+                  <span className="text-slate-500">Shop: <strong className="text-slate-800 dark:text-slate-200">{p.inventory.shopQuantity}</strong></span>
+                  <span className="text-slate-500">Total: <strong className="text-slate-900 dark:text-slate-100">{p.inventory.totalQuantity}</strong></span>
+                  <span className="ml-auto font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(p.sellingPrice)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Badge variant={p.trackingType === 'SERIALIZED' ? 'info' : 'neutral'} size="sm">
+                    {p.trackingType === 'SERIALIZED' ? 'Serialized' : 'Quantity'}
+                  </Badge>
+                  <div className="flex gap-1.5">
+                    <Link href={`/products/${p.id}`}><Button variant="ghost" size="sm">View</Button></Link>
+                    {isAdmin && <Button variant="secondary" size="sm" onClick={() => setEditingProduct(p)}>Edit</Button>}
+                  </div>
                 </div>
               </div>
-            </>
+            ))}
+          </div>
+
+          {/* pagination */}
+          {meta.totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-950/60">
+              <span className="text-xs text-slate-500">
+                Page {meta.page} of {meta.totalPages} · {meta.total} items
+              </span>
+              <div className="flex gap-1.5">
+                <Button variant="secondary" size="sm" disabled={page <= 1 || isLoading} onClick={() => setPage((p) => p - 1)}>Prev</Button>
+                <Button variant="secondary" size="sm" disabled={page >= meta.totalPages || isLoading} onClick={() => setPage((p) => p + 1)}>Next</Button>
+              </div>
+            </div>
           )}
-        </Card>
+        </div>
+
       </div>
 
-      {/* Modals */}
-      <CreateProductModal
-        isOpen={isCreateProductOpen}
-        onClose={() => setIsCreateProductOpen(false)}
-        onSuccess={handleCreateProductSuccess}
-      />
-
-      <EditProductModal
-        product={editingProduct}
-        isOpen={!!editingProduct}
-        onClose={() => setEditingProduct(null)}
-        onSuccess={handleEditProductSuccess}
-      />
-
-      <CreateCategoryModal
-        isOpen={isCreateCategoryOpen}
-        onClose={() => setIsCreateCategoryOpen(false)}
-        onSuccess={handleCreateCategorySuccess}
-      />
-
-      <EditCategoryModal
-        category={editingCategory}
-        isOpen={!!editingCategory}
-        onClose={() => setEditingCategory(null)}
-        onSuccess={handleEditCategorySuccess}
-      />
+      {/* modals */}
+      <CreateProductModal isOpen={isCreateProductOpen} onClose={() => setIsCreateProductOpen(false)}
+        onSuccess={() => { showSuccess('Product created.'); fetchProducts(); fetchCategories(); }} />
+      <EditProductModal product={editingProduct} isOpen={!!editingProduct} onClose={() => setEditingProduct(null)}
+        onSuccess={() => { showSuccess('Product updated.'); fetchProducts(); fetchCategories(); }} />
+      <CreateCategoryModal isOpen={isCreateCategoryOpen} onClose={() => setIsCreateCategoryOpen(false)}
+        onSuccess={(cat) => { showSuccess(`Category "${cat.name}" created.`); fetchCategories(); setCategoryId(cat.id); }} />
+      <EditCategoryModal category={editingCategory} isOpen={!!editingCategory} onClose={() => setEditingCategory(null)}
+        onSuccess={(cat) => { showSuccess(`Category "${cat.name}" updated.`); fetchCategories(); fetchProducts(); }} />
     </AppShell>
   );
 }
