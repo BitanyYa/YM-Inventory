@@ -406,7 +406,7 @@ export default function InventoryPage() {
                       ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
                       : products.map((p) => (
                           <tr
-                            key={p.id}
+                            key={`row-${p.id}`}
                             className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-900/60"
                           >
                             <td className="px-6 py-4">
@@ -454,7 +454,7 @@ export default function InventoryPage() {
               {/* mobile cards — same pattern as products page */}
               <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
                 {products.map((p) => (
-                  <div key={p.id} className="p-4 space-y-2.5">
+                  <div key={`mob-${p.id}`} className="p-4 space-y-2.5">
                     <div className="flex items-start justify-between">
                       <div>
                         <Link
