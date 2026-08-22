@@ -11,6 +11,7 @@ import {
   SellStockRequest,
   ReturnStockRequest,
   DamageLossStockRequest,
+  AdjustStockRequest,
   ProductDetailResponse,
 } from '../types/api';
 
@@ -200,4 +201,16 @@ export const inventoryService = {
       body: JSON.stringify(data),
     });
   },
+
+  /**
+   * POST /stock/adjust
+   * Adjust stock for DAMAGE or LOSS at a specific location.
+   */
+  async adjustStock(data: AdjustStockRequest): Promise<void> {
+    await apiClient<unknown>('/stock/adjust', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
+

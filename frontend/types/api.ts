@@ -399,3 +399,14 @@ export interface DamageLossStockRequest {
   location: Location;
   note?: string;
 }
+
+export interface AdjustStockRequest {
+  productId: string;
+  movementType?: MovementType;
+  type?: MovementType;
+  quantity?: number;
+  unitIds?: string[];
+  location?: Location;
+  note?: string;
+}
+
