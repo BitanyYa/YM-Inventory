@@ -30,7 +30,7 @@ function SkelRow() {
     <tr>
       {[45, 25, 20, 14, 14, 14, 18, 16, 10].map((w, i) => (
         <td key={i} className="px-3 py-2.5">
-          <div className="h-3.5 animate-pulse rounded bg-slate-100 dark:bg-slate-800" style={{ width: `${w}%` }} />
+          <div className="h-3.5 animate-pulse rounded bg-[#F5F5F7] dark:bg-[#2C2C2E]" style={{ width: `${w}%` }} />
         </td>
       ))}
     </tr>
@@ -69,8 +69,7 @@ export default function ProductsPage() {
   }, [search]);
 
   const fetchCategories = useCallback(async () => {
-    try { setCategories((await categoryService.getCategories()) ?? []); }
-    catch { /* non-critical */ }
+    try { setCategories((await categoryService.getCategories()) ?? []); } catch { /* non-critical */ }
   }, []);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
@@ -101,59 +100,58 @@ export default function ProductsPage() {
   const resetFilters = () => { setSearch(''); setProductType(''); setTrackingType(''); setCategoryId(''); setIsActiveFilter('true'); setStockStatusFilter(''); setPage(1); };
   const hasFilters = !!(debouncedSearch || productType || trackingType || categoryId || stockStatusFilter || isActiveFilter !== 'true');
 
+  /* shared input/select class */
+  const inputCls = 'rounded-lg border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]';
+
   return (
     <AppShell>
       <div className="space-y-3">
 
-        {/* ── header ── */}
+        {/* header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Products</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Products</h2>
+            <p className="text-xs text-[#6E6E73]">
               {meta.total} product{meta.total !== 1 ? 's' : ''}{hasFilters ? ' (filtered)' : ''}
             </p>
           </div>
           {isAdmin && (
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setIsCreateCategoryOpen(true)}>
-                + Category
-              </Button>
-              <Button variant="primary" size="sm" onClick={() => setIsCreateProductOpen(true)}>
-                + Product
-              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setIsCreateCategoryOpen(true)}>+ Category</Button>
+              <Button variant="primary" size="sm" onClick={() => setIsCreateProductOpen(true)}>+ Product</Button>
             </div>
           )}
         </div>
 
-        {/* ── banners ── */}
+        {/* banners */}
         {successBanner && (
-          <div className="flex items-center justify-between rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200">
+          <div className="flex items-center justify-between rounded-lg border border-[#30D158]/30 bg-[#E9F9EE] px-3 py-2 text-xs font-medium text-[#1A7A3A] dark:border-[#30D158]/20 dark:bg-[#0A2E1A] dark:text-[#30D158]">
             <span>{successBanner}</span>
-            <button onClick={() => setSuccessBanner(null)} className="font-bold">✕</button>
+            <button onClick={() => setSuccessBanner(null)}>✕</button>
           </div>
         )}
         {error && (
-          <div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300">
+          <div className="flex items-center justify-between rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-3 py-2 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
             <div className="flex items-center gap-2"><AlertTriangleIcon size={14} />{error}</div>
             <Button variant="secondary" size="sm" onClick={fetchProducts}>Retry</Button>
           </div>
         )}
 
-        {/* ── category pills ── */}
+        {/* category pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
           {[{ id: '', name: 'All' }, ...categories].map((cat) => (
             <button
               key={cat.id}
               onClick={() => { setCategoryId(cat.id); setPage(1); }}
-              className={`shrink-0 rounded px-3 py-1 text-xs font-semibold transition-colors ${
+              className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
                 categoryId === cat.id
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                  : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'bg-[#0071E3] text-white'
+                  : 'border border-[#D2D2D7] bg-white text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#1C1C1E] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]'
               }`}
             >
               {cat.name}
               {'productCount' in cat && cat.productCount !== undefined && (
-                <span className={`ml-1.5 text-[10px] ${categoryId === cat.id ? 'opacity-75' : 'text-slate-400'}`}>
+                <span className={`ml-1.5 text-[10px] ${categoryId === cat.id ? 'opacity-75' : 'text-[#86868B]'}`}>
                   {cat.productCount}
                 </span>
               )}
@@ -162,33 +160,30 @@ export default function ProductsPage() {
           {isAdmin && (
             <button
               onClick={() => setIsCreateCategoryOpen(true)}
-              className="shrink-0 rounded border border-dashed border-slate-300 px-3 py-1 text-xs font-medium text-slate-400 hover:border-slate-400 hover:text-slate-600 dark:border-slate-700 dark:hover:border-slate-500"
+              className="shrink-0 rounded-lg border border-dashed border-[#D2D2D7] px-3 py-1 text-xs font-medium text-[#86868B] hover:border-[#0071E3] hover:text-[#0071E3] dark:border-[#38383A] dark:hover:border-[#0A84FF] dark:hover:text-[#0A84FF]"
             >
               + New
             </button>
           )}
         </div>
 
-        {/* ── filter bar ── */}
-        <div className="flex flex-col gap-2 rounded border border-slate-200 bg-white p-2.5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center">
+        {/* filter bar */}
+        <div className="flex flex-col gap-2 rounded-xl border border-[#E8E8ED] bg-white p-2.5 dark:border-[#38383A] dark:bg-[#1C1C1E] sm:flex-row sm:items-center">
           <div className="relative flex-1">
-            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#AEAEB2]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products..."
-              className="w-full rounded border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              placeholder="Search products…"
+              className={`w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-[#D2D2D7] bg-[#F5F5F7] text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]`}
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
             {[
               {
                 value: productType, onChange: (v: string) => { setProductType(v as ProductType | ''); setPage(1); },
-                options: [
-                  ['', 'All Types'], ['PHONE', 'Phone'], ['ACCESSORY', 'Accessory'],
-                  ['TABLET', 'Tablet'], ['LAPTOP', 'Laptop'], ['SMART_WATCH', 'Smart Watch'], ['OTHER', 'Other'],
-                ],
+                options: [['', 'All Types'], ['PHONE', 'Phone'], ['ACCESSORY', 'Accessory'], ['TABLET', 'Tablet'], ['LAPTOP', 'Laptop'], ['SMART_WATCH', 'Smart Watch'], ['OTHER', 'Other']],
               },
               {
                 value: trackingType, onChange: (v: string) => { setTrackingType(v as TrackingType | ''); setPage(1); },
@@ -203,41 +198,29 @@ export default function ProductsPage() {
                 options: [['true', 'Active'], ['false', 'Inactive'], ['all', 'All']],
               },
             ].map((sel, i) => (
-              <select
-                key={i}
-                value={sel.value}
-                onChange={(e) => sel.onChange(e.target.value)}
-                className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              >
+              <select key={i} value={sel.value} onChange={(e) => sel.onChange(e.target.value)} className={inputCls}>
                 {sel.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             ))}
             {hasFilters && (
-              <button
-                onClick={resetFilters}
-                className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
-              >
-                Clear
-              </button>
+              <button onClick={resetFilters} className={`${inputCls} hover:bg-[#F5F5F7]`}>Clear</button>
             )}
           </div>
         </div>
 
-        {/* ── table ── */}
-        <div className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        {/* table */}
+        <div className="rounded-xl border border-[#E8E8ED] bg-white dark:border-[#38383A] dark:bg-[#1C1C1E]">
           {/* desktop */}
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60">
+                <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
                   {['Product', 'Category', 'Type', 'WH', 'Shop', 'Total', 'Status', 'Price', ''].map((h) => (
-                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      {h}
-                    </th>
+                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
                 {isLoading
                   ? Array.from({ length: 8 }).map((_, i) => <SkelRow key={i} />)
                   : products.length === 0
@@ -245,40 +228,36 @@ export default function ProductsPage() {
                     <tr>
                       <td colSpan={9} className="px-4 py-10 text-center">
                         <div className="flex flex-col items-center gap-2">
-                          <AlertTriangleIcon size={20} className="text-slate-300" />
-                          <p className="text-xs font-medium text-slate-500">No products found</p>
-                          {hasFilters && <button onClick={resetFilters} className="text-xs text-slate-700 underline">Clear filters</button>}
+                          <AlertTriangleIcon size={20} className="text-[#D2D2D7]" />
+                          <p className="text-xs font-medium text-[#6E6E73]">No products found</p>
+                          {hasFilters && <button onClick={resetFilters} className="text-xs text-[#0071E3]">Clear filters</button>}
                         </div>
                       </td>
                     </tr>
                   )
                   : products.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                    <tr key={p.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
                       <td className="px-3 py-2.5">
-                        <Link href={`/products/${p.id}`} className="font-semibold text-slate-900 hover:underline dark:text-slate-100">
+                        <Link href={`/products/${p.id}`} className="font-semibold text-[#1D1D1F] hover:text-[#0071E3] dark:text-[#F5F5F7]">
                           {p.name}
                         </Link>
-                        <span className="block text-[11px] text-slate-400">{p.brand}</span>
+                        <span className="block text-[11px] text-[#86868B]">{p.brand}</span>
                       </td>
-                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400">{p.category?.name ?? '—'}</td>
+                      <td className="px-3 py-2.5 text-[#6E6E73]">{p.category?.name ?? '—'}</td>
                       <td className="px-3 py-2.5">
                         <Badge variant={p.trackingType === 'SERIALIZED' ? 'info' : 'neutral'} size="sm">
                           {p.trackingType === 'SERIALIZED' ? 'Serial' : 'Qty'}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2.5 tabular-nums font-semibold text-slate-800 dark:text-slate-200">{p.inventory.warehouseQuantity}</td>
-                      <td className="px-3 py-2.5 tabular-nums font-semibold text-slate-800 dark:text-slate-200">{p.inventory.shopQuantity}</td>
-                      <td className="px-3 py-2.5 tabular-nums font-bold text-slate-900 dark:text-slate-100">{p.inventory.totalQuantity}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.warehouseQuantity}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.shopQuantity}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.totalQuantity}</td>
                       <td className="px-3 py-2.5"><StockBadge status={p.stockStatus} /></td>
-                      <td className="px-3 py-2.5 tabular-nums text-slate-700 dark:text-slate-300">{formatCurrency(p.sellingPrice)}</td>
+                      <td className="px-3 py-2.5 tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">{formatCurrency(p.sellingPrice)}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <Link href={`/products/${p.id}`}>
-                            <Button variant="ghost" size="sm">View</Button>
-                          </Link>
-                          {isAdmin && (
-                            <Button variant="secondary" size="sm" onClick={() => setEditingProduct(p)}>Edit</Button>
-                          )}
+                          <Link href={`/products/${p.id}`}><Button variant="ghost" size="sm">View</Button></Link>
+                          {isAdmin && <Button variant="secondary" size="sm" onClick={() => setEditingProduct(p)}>Edit</Button>}
                         </div>
                       </td>
                     </tr>
@@ -288,30 +267,30 @@ export default function ProductsPage() {
           </div>
 
           {/* mobile */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+          <div className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden">
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="animate-pulse p-3 space-y-1.5">
-                  <div className="h-3.5 w-3/5 rounded bg-slate-100 dark:bg-slate-800" />
-                  <div className="h-3 w-2/5 rounded bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-3.5 w-3/5 rounded bg-[#F5F5F7] dark:bg-[#2C2C2E]" />
+                  <div className="h-3 w-2/5 rounded bg-[#F5F5F7] dark:bg-[#2C2C2E]" />
                 </div>
               ))
             ) : products.map((p) => (
               <div key={p.id} className="p-3 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <Link href={`/products/${p.id}`} className="text-sm font-semibold text-slate-900 hover:underline dark:text-slate-100">
+                    <Link href={`/products/${p.id}`} className="text-sm font-semibold text-[#1D1D1F] hover:text-[#0071E3] dark:text-[#F5F5F7]">
                       {p.name}
                     </Link>
-                    <p className="text-[11px] text-slate-400">{p.brand} · {p.category?.name ?? 'Uncategorized'}</p>
+                    <p className="text-[11px] text-[#86868B]">{p.brand} · {p.category?.name ?? 'Uncategorized'}</p>
                   </div>
                   <StockBadge status={p.stockStatus} />
                 </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="text-slate-500">WH: <strong className="text-slate-800 dark:text-slate-200">{p.inventory.warehouseQuantity}</strong></span>
-                  <span className="text-slate-500">Shop: <strong className="text-slate-800 dark:text-slate-200">{p.inventory.shopQuantity}</strong></span>
-                  <span className="text-slate-500">Total: <strong className="text-slate-900 dark:text-slate-100">{p.inventory.totalQuantity}</strong></span>
-                  <span className="ml-auto font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(p.sellingPrice)}</span>
+                <div className="flex items-center gap-3 rounded-lg bg-[#F5F5F7] px-3 py-2 text-xs dark:bg-[#2C2C2E]">
+                  <span className="text-[#6E6E73]">WH: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.warehouseQuantity}</strong></span>
+                  <span className="text-[#6E6E73]">Shop: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.shopQuantity}</strong></span>
+                  <span className="text-[#6E6E73]">Total: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.totalQuantity}</strong></span>
+                  <span className="ml-auto font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{formatCurrency(p.sellingPrice)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <Badge variant={p.trackingType === 'SERIALIZED' ? 'info' : 'neutral'} size="sm">
@@ -328,8 +307,8 @@ export default function ProductsPage() {
 
           {/* pagination */}
           {meta.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-950/60">
-              <span className="text-xs text-slate-500">
+            <div className="flex items-center justify-between border-t border-[#E8E8ED] bg-[#F5F5F7] px-4 py-2.5 dark:border-[#38383A] dark:bg-[#2C2C2E]">
+              <span className="text-xs text-[#6E6E73]">
                 Page {meta.page} of {meta.totalPages} · {meta.total} items
               </span>
               <div className="flex gap-1.5">

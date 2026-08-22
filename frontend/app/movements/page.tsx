@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { dashboardService } from '../../services/dashboard.service';
 import { StockMovementItem, MovementType, PaginationMeta } from '../../types/api';
 import { AppShell } from '../../components/layout/AppShell';
 import { Badge } from '../../components/ui/Badge';
@@ -11,7 +10,6 @@ import { SearchIcon, AlertTriangleIcon } from '../../components/ui/Icons';
 import { formatDate } from '../../lib/utils';
 import { apiClient } from '../../lib/api-client';
 
-/* re-use apiClient directly for paginated movements — dashboard service only fetches 5 */
 interface MovementsResponse {
   data: StockMovementItem[];
   meta: PaginationMeta;
@@ -43,7 +41,7 @@ function SkelRow() {
     <tr>
       {[18, 40, 12, 18, 20, 22].map((w, i) => (
         <td key={i} className="px-3 py-2.5">
-          <div className="h-3.5 animate-pulse rounded bg-slate-100 dark:bg-slate-800" style={{ width: `${w}%` }} />
+          <div className="h-3.5 animate-pulse rounded bg-[#F5F5F7] dark:bg-[#2C2C2E]" style={{ width: `${w}%` }} />
         </td>
       ))}
     </tr>
@@ -87,48 +85,44 @@ export default function MovementsPage() {
   const hasFilters = !!(debouncedSearch || movementType);
   const resetFilters = () => { setSearch(''); setMovementType(''); setPage(1); };
 
+  const selectCls = 'rounded-lg border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs font-medium text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]';
+
   return (
     <AppShell>
       <div className="space-y-3">
 
-        {/* ── header ── */}
+        {/* header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Movements</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Movements</h2>
+            <p className="text-xs text-[#6E6E73]">
               {isLoading ? 'Loading…' : `${meta.total} record${meta.total !== 1 ? 's' : ''}${hasFilters ? ' (filtered)' : ''}`}
             </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={fetchMovements} isLoading={isLoading}>
-            Refresh
-          </Button>
+          <Button variant="secondary" size="sm" onClick={fetchMovements} isLoading={isLoading}>Refresh</Button>
         </div>
 
         {error && (
-          <div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300">
+          <div className="flex items-center justify-between rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-3 py-2 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
             <div className="flex items-center gap-2"><AlertTriangleIcon size={14} />{error}</div>
             <Button variant="secondary" size="sm" onClick={fetchMovements}>Retry</Button>
           </div>
         )}
 
-        {/* ── filter bar ── */}
-        <div className="flex flex-col gap-2 rounded border border-slate-200 bg-white p-2.5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center">
+        {/* filter bar */}
+        <div className="flex flex-col gap-2 rounded-xl border border-[#E8E8ED] bg-white p-2.5 dark:border-[#38383A] dark:bg-[#1C1C1E] sm:flex-row sm:items-center">
           <div className="relative flex-1">
-            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#AEAEB2]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by product name..."
-              className="w-full rounded border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              placeholder="Search by product name…"
+              className="w-full rounded-lg border border-[#D2D2D7] bg-[#F5F5F7] py-1.5 pl-8 pr-3 text-xs text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]"
             />
           </div>
           <div className="flex gap-1.5">
-            <select
-              value={movementType}
-              onChange={(e) => { setMovementType(e.target.value as MovementType | ''); setPage(1); }}
-              className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-            >
+            <select value={movementType} onChange={(e) => { setMovementType(e.target.value as MovementType | ''); setPage(1); }} className={selectCls}>
               <option value="">All Types</option>
               <option value="STOCK_IN">Stock In</option>
               <option value="TRANSFER">Transfer</option>
@@ -138,59 +132,52 @@ export default function MovementsPage() {
               <option value="LOSS">Loss</option>
             </select>
             {hasFilters && (
-              <button
-                onClick={resetFilters}
-                className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
-              >
-                Clear
-              </button>
+              <button onClick={resetFilters} className={`${selectCls} hover:bg-[#F5F5F7]`}>Clear</button>
             )}
           </div>
         </div>
 
-        {/* ── table ── */}
-        <div className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        {/* table */}
+        <div className="rounded-xl border border-[#E8E8ED] bg-white dark:border-[#38383A] dark:bg-[#1C1C1E]">
           {/* desktop */}
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60">
+                <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
                   {['Type', 'Product', 'Qty', 'Flow', 'By', 'Date'].map((h) => (
-                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-slate-400">{h}</th>
+                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
                 {isLoading
                   ? Array.from({ length: 8 }).map((_, i) => <SkelRow key={i} />)
                   : movements.length === 0
                   ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-10 text-center">
-                        <p className="text-xs text-slate-400">No movements found.{hasFilters && ' Try clearing filters.'}</p>
-                        {hasFilters && <button onClick={resetFilters} className="mt-1 text-xs text-slate-700 underline">Clear filters</button>}
+                        <p className="text-xs text-[#86868B]">No movements found.{hasFilters && ' Try clearing filters.'}</p>
+                        {hasFilters && <button onClick={resetFilters} className="mt-1 text-xs text-[#0071E3]">Clear filters</button>}
                       </td>
                     </tr>
                   )
                   : movements.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                    <tr key={m.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
                       <td className="px-3 py-2.5">
                         <Badge variant={movementBadgeVariant(m.movementType)} size="sm">
                           {m.movementType.replace('_', ' ')}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5">
-                        {m.product ? (
-                          <Link href={`/products/${m.productId}`} className="font-medium text-slate-900 hover:underline dark:text-slate-100">
-                            {m.product.name}
-                          </Link>
-                        ) : <span className="text-slate-400">—</span>}
-                        {m.product?.brand && <span className="ml-1 text-slate-400">· {m.product.brand}</span>}
+                        {m.product
+                          ? <Link href={`/products/${m.productId}`} className="font-medium text-[#1D1D1F] hover:text-[#0071E3] dark:text-[#F5F5F7]">{m.product.name}</Link>
+                          : <span className="text-[#86868B]">—</span>}
+                        {m.product?.brand && <span className="ml-1 text-[#86868B]">· {m.product.brand}</span>}
                       </td>
-                      <td className="px-3 py-2.5 tabular-nums font-semibold text-slate-800 dark:text-slate-200">{m.quantity}</td>
-                      <td className="px-3 py-2.5 text-slate-500">{locationFlow(m)}</td>
-                      <td className="px-3 py-2.5 text-slate-500">{m.createdBy?.name ?? '—'}</td>
-                      <td className="px-3 py-2.5 text-slate-400 whitespace-nowrap">{formatDate(m.createdAt)}</td>
+                      <td className="px-3 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{m.quantity}</td>
+                      <td className="px-3 py-2.5 text-[#6E6E73]">{locationFlow(m)}</td>
+                      <td className="px-3 py-2.5 text-[#6E6E73]">{m.createdBy?.name ?? '—'}</td>
+                      <td className="px-3 py-2.5 text-[#86868B] whitespace-nowrap">{formatDate(m.createdAt)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -198,12 +185,12 @@ export default function MovementsPage() {
           </div>
 
           {/* mobile */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+          <div className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden">
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="animate-pulse p-3 space-y-1.5">
-                  <div className="h-3.5 w-3/5 rounded bg-slate-100 dark:bg-slate-800" />
-                  <div className="h-3 w-2/5 rounded bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-3.5 w-3/5 rounded bg-[#F5F5F7] dark:bg-[#2C2C2E]" />
+                  <div className="h-3 w-2/5 rounded bg-[#F5F5F7] dark:bg-[#2C2C2E]" />
                 </div>
               ))
               : movements.map((m) => (
@@ -212,27 +199,23 @@ export default function MovementsPage() {
                     <Badge variant={movementBadgeVariant(m.movementType)} size="sm">
                       {m.movementType.replace('_', ' ')}
                     </Badge>
-                    <span className="text-[11px] text-slate-400">{formatDate(m.createdAt)}</span>
+                    <span className="text-[11px] text-[#86868B]">{formatDate(m.createdAt)}</span>
                   </div>
-                  <p className="font-medium text-slate-900 dark:text-slate-100">
-                    {m.product?.name ?? '—'}
-                  </p>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                    <span>Qty: <strong className="text-slate-700 dark:text-slate-300">{m.quantity}</strong></span>
+                  <p className="font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">{m.product?.name ?? '—'}</p>
+                  <div className="flex items-center gap-3 text-[11px] text-[#6E6E73]">
+                    <span>Qty: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{m.quantity}</strong></span>
                     <span>{locationFlow(m)}</span>
                     {m.createdBy && <span>by {m.createdBy.name}</span>}
                   </div>
-                  {m.note && <p className="text-[11px] text-slate-400 italic">{m.note}</p>}
+                  {m.note && <p className="text-[11px] text-[#86868B] italic">{m.note}</p>}
                 </div>
               ))}
           </div>
 
           {/* pagination */}
           {meta.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-950/60">
-              <span className="text-xs text-slate-500">
-                Page {meta.page} of {meta.totalPages} · {meta.total} records
-              </span>
+            <div className="flex items-center justify-between border-t border-[#E8E8ED] bg-[#F5F5F7] px-4 py-2.5 dark:border-[#38383A] dark:bg-[#2C2C2E]">
+              <span className="text-xs text-[#6E6E73]">Page {meta.page} of {meta.totalPages} · {meta.total} records</span>
               <div className="flex gap-1.5">
                 <Button variant="secondary" size="sm" disabled={page <= 1 || isLoading} onClick={() => setPage((p) => p - 1)}>Prev</Button>
                 <Button variant="secondary" size="sm" disabled={page >= meta.totalPages || isLoading} onClick={() => setPage((p) => p + 1)}>Next</Button>

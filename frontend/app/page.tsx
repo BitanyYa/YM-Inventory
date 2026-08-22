@@ -9,18 +9,17 @@ import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { AlertTriangleIcon, SearchIcon } from '../components/ui/Icons';
+import { AlertTriangleIcon } from '../components/ui/Icons';
 
-/* ── movement badge ── */
 function movementBadgeVariant(type: MovementType) {
   switch (type) {
-    case 'STOCK_IN': return 'info';
-    case 'TRANSFER': return 'neutral';
-    case 'SALE': return 'success';
-    case 'RETURN': return 'warning';
+    case 'STOCK_IN': return 'info' as const;
+    case 'TRANSFER': return 'neutral' as const;
+    case 'SALE': return 'success' as const;
+    case 'RETURN': return 'warning' as const;
     case 'DAMAGE':
-    case 'LOSS': return 'danger';
-    default: return 'neutral';
+    case 'LOSS': return 'danger' as const;
+    default: return 'neutral' as const;
   }
 }
 
@@ -33,13 +32,12 @@ function locationFlow(m: StockMovementItem): string {
   return [m.fromLocation, m.toLocation].filter(Boolean).join(' → ') || '—';
 }
 
-/* ── skeleton row ── */
 function SkelRow({ cols }: { cols: number }) {
   return (
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="px-3 py-2">
-          <div className="h-3.5 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" style={{ width: i === 0 ? '60%' : '40%' }} />
+          <div className="h-3.5 rounded bg-[#F5F5F7] animate-pulse dark:bg-[#2C2C2E]" style={{ width: i === 0 ? '60%' : '40%' }} />
         </td>
       ))}
     </tr>
@@ -93,13 +91,15 @@ export default function DashboardPage() {
     <AppShell>
       <div className="space-y-4">
 
-        {/* ── page heading ── */}
+        {/* heading */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
               {user?.name ? `Welcome, ${user.name}` : 'Dashboard'}
             </h2>
-            <p className="text-xs text-slate-500">Stock overview — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p className="text-xs text-[#6E6E73]">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
           </div>
           <Button variant="secondary" size="sm" onClick={refresh} isLoading={refreshing}>
             Refresh
@@ -107,13 +107,13 @@ export default function DashboardPage() {
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300">
+          <div className="flex items-center gap-2 rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-3 py-2 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
             <AlertTriangleIcon size={14} className="shrink-0" />
             {error}
           </div>
         )}
 
-        {/* ── compact stats bar ── */}
+        {/* stats bar */}
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {[
             { label: 'Total Products', value: s?.products.total, loading: summaryLoading },
@@ -125,24 +125,24 @@ export default function DashboardPage() {
           ].map((stat) => (
             <div
               key={stat.label}
-              className={`rounded border bg-white px-3 py-2.5 dark:bg-slate-900 ${
+              className={`rounded-xl border bg-white px-3 py-2.5 dark:bg-[#1C1C1E] ${
                 stat.danger && (s?.alerts.outOfStockProducts ?? 0) > 0
-                  ? 'border-red-200 dark:border-red-900/50'
+                  ? 'border-[#FF3B30]/30 dark:border-[#FF453A]/30'
                   : stat.warn && (s?.alerts.lowStockProducts ?? 0) > 0
-                  ? 'border-amber-200 dark:border-amber-900/50'
-                  : 'border-slate-200 dark:border-slate-800'
+                  ? 'border-[#FF9F0A]/30 dark:border-[#FF9F0A]/30'
+                  : 'border-[#E8E8ED] dark:border-[#38383A]'
               }`}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{stat.label}</p>
+              <p className="text-[10px] font-medium text-[#6E6E73]">{stat.label}</p>
               {stat.loading ? (
-                <div className="mt-1 h-5 w-12 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="mt-1 h-5 w-12 animate-pulse rounded bg-[#F5F5F7] dark:bg-[#2C2C2E]" />
               ) : (
                 <p className={`mt-0.5 text-base font-bold tabular-nums ${
                   stat.danger && (s?.alerts.outOfStockProducts ?? 0) > 0
-                    ? 'text-red-600 dark:text-red-400'
+                    ? 'text-[#FF3B30] dark:text-[#FF453A]'
                     : stat.warn && (s?.alerts.lowStockProducts ?? 0) > 0
-                    ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-slate-900 dark:text-slate-100'
+                    ? 'text-[#FF9F0A]'
+                    : 'text-[#1D1D1F] dark:text-[#F5F5F7]'
                 }`}>
                   {stat.value ?? '—'}
                 </p>
@@ -151,9 +151,9 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* ── quick actions ── */}
-        <div className="flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 mr-1">Quick:</span>
+        {/* quick actions */}
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#E8E8ED] bg-white px-4 py-3 dark:border-[#38383A] dark:bg-[#1C1C1E]">
+          <span className="text-xs font-medium text-[#86868B] mr-1">Quick:</span>
           {[
             { label: '+ Receive', href: '/inventory' },
             { label: '⇄ Transfer', href: '/inventory' },
@@ -162,31 +162,26 @@ export default function DashboardPage() {
             { label: '⚠ Damage/Loss', href: '/inventory', danger: true },
           ].map((a) => (
             <Link key={a.label} href={a.href}>
-              <Button
-                variant={a.danger ? 'danger' : 'secondary'}
-                size="sm"
-              >
-                {a.label}
-              </Button>
+              <Button variant={a.danger ? 'danger' : 'secondary'} size="sm">{a.label}</Button>
             </Link>
           ))}
-          <span className="ml-auto text-[10px] text-slate-400">Select a product in Inventory to operate</span>
+          <span className="ml-auto text-[10px] text-[#86868B]">Select a product in Inventory to operate</span>
         </div>
 
-        {/* ── two column: alerts + movements ── */}
+        {/* two-column tables */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
           {/* stock alerts */}
-          <div className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
+          <div className="rounded-xl border border-[#E8E8ED] bg-white dark:border-[#38383A] dark:bg-[#1C1C1E]">
+            <div className="flex items-center justify-between border-b border-[#F5F5F7] px-4 py-2.5 dark:border-[#2C2C2E]">
               <div className="flex items-center gap-2">
-                <AlertTriangleIcon size={14} className="text-amber-500" />
-                <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">Stock Alerts</span>
+                <AlertTriangleIcon size={14} className="text-[#FF9F0A]" />
+                <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Stock Alerts</span>
                 {!alertsLoading && alerts.length > 0 && (
                   <Badge variant="danger" size="sm">{alerts.length}</Badge>
                 )}
               </div>
-              <Link href="/inventory?stockStatus=LOW_STOCK" className="text-[10px] font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-slate-100">
+              <Link href="/inventory" className="text-[10px] font-semibold text-[#0071E3] hover:text-[#0077ED]">
                 View all →
               </Link>
             </div>
@@ -194,33 +189,33 @@ export default function DashboardPage() {
             {alertsLoading ? (
               <table className="w-full text-xs"><tbody>{Array.from({ length: 4 }).map((_, i) => <SkelRow key={i} cols={4} />)}</tbody></table>
             ) : alerts.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-slate-400">All stock levels are healthy.</p>
+              <p className="px-4 py-6 text-center text-xs text-[#86868B]">All stock levels are healthy.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-4 py-2 text-left font-semibold uppercase tracking-wider text-slate-400">Product</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-slate-400">Total</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-slate-400">Min</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-slate-400">Status</th>
+                    <tr className="border-b border-[#F5F5F7] dark:border-[#2C2C2E]">
+                      <th className="px-4 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B]">Product</th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-[#86868B]">Total</th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-[#86868B]">Min</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B]">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
                     {alerts.map((a) => (
-                      <tr key={a.product.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <tr key={a.product.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
                         <td className="px-4 py-2">
-                          <Link href={`/products/${a.product.id}`} className="font-medium text-slate-900 hover:underline dark:text-slate-100">
+                          <Link href={`/products/${a.product.id}`} className="font-medium text-[#1D1D1F] hover:text-[#0071E3] dark:text-[#F5F5F7]">
                             {a.product.name}
                           </Link>
                           {a.product.category && (
-                            <span className="ml-1 text-slate-400">· {a.product.category.name}</span>
+                            <span className="ml-1 text-[#86868B]">· {a.product.category.name}</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100">
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
                           {a.inventory.totalQuantity}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                        <td className="px-3 py-2 text-right tabular-nums text-[#6E6E73]">
                           {a.product.minimumStock}
                         </td>
                         <td className="px-3 py-2">
@@ -237,44 +232,44 @@ export default function DashboardPage() {
           </div>
 
           {/* recent movements */}
-          <div className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
-              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">Recent Movements</span>
-              <Link href="/movements" className="text-[10px] font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-slate-100">
+          <div className="rounded-xl border border-[#E8E8ED] bg-white dark:border-[#38383A] dark:bg-[#1C1C1E]">
+            <div className="flex items-center justify-between border-b border-[#F5F5F7] px-4 py-2.5 dark:border-[#2C2C2E]">
+              <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Recent Movements</span>
+              <Link href="/movements" className="text-[10px] font-semibold text-[#0071E3] hover:text-[#0077ED]">
                 View all →
               </Link>
             </div>
 
             {movementsLoading ? (
-              <table className="w-full text-xs"><tbody>{Array.from({ length: 5 }).map((_, i) => <SkelRow key={i} cols={4} />)}</tbody></table>
+              <table className="w-full text-xs"><tbody>{Array.from({ length: 5 }).map((_, i) => <SkelRow key={i} cols={5} />)}</tbody></table>
             ) : movements.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-slate-400">No movements recorded yet.</p>
+              <p className="px-4 py-6 text-center text-xs text-[#86868B]">No movements recorded yet.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-4 py-2 text-left font-semibold uppercase tracking-wider text-slate-400">Type</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-slate-400">Product</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-slate-400">Qty</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-slate-400">Flow</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-slate-400 hidden sm:table-cell">Date</th>
+                    <tr className="border-b border-[#F5F5F7] dark:border-[#2C2C2E]">
+                      <th className="px-4 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B]">Type</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B]">Product</th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-[#86868B]">Qty</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B]">Flow</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B] hidden sm:table-cell">Date</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
                     {movements.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <tr key={m.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
                         <td className="px-4 py-2">
                           <Badge variant={movementBadgeVariant(m.movementType)} size="sm">
                             {m.movementType.replace('_', ' ')}
                           </Badge>
                         </td>
-                        <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 max-w-[120px]">
+                        <td className="px-3 py-2 font-medium text-[#1D1D1F] dark:text-[#F5F5F7] max-w-[120px]">
                           <span className="truncate block">{m.product?.name ?? '—'}</span>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">{m.quantity}</td>
-                        <td className="px-3 py-2 text-slate-500">{locationFlow(m)}</td>
-                        <td className="px-3 py-2 text-slate-400 hidden sm:table-cell whitespace-nowrap">{formatDate(m.createdAt)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">{m.quantity}</td>
+                        <td className="px-3 py-2 text-[#6E6E73]">{locationFlow(m)}</td>
+                        <td className="px-3 py-2 text-[#86868B] hidden sm:table-cell whitespace-nowrap">{formatDate(m.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

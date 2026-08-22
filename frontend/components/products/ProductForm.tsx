@@ -11,7 +11,6 @@ import {
 } from '../../types/api';
 import { categoryService } from '../../services/category.service';
 import { Input } from '../ui/Input';
-import { Button } from '../ui/Button';
 import { CreateCategoryModal } from '../categories/CreateCategoryModal';
 
 interface ProductFormProps {
@@ -32,12 +31,10 @@ const PRODUCT_TYPE_OPTIONS: { label: string; value: ProductType }[] = [
   { label: 'Other', value: 'OTHER' },
 ];
 
-/* shared select class */
 const selectCls =
-  'w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
+  'w-full rounded-lg border border-[#D2D2D7] bg-white px-3 py-1.5 text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] disabled:bg-[#F5F5F7] disabled:text-[#86868B] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]';
 
-/* shared label class */
-const labelCls = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1';
+const labelCls = 'block text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1';
 
 export const ProductForm: React.FC<ProductFormProps> = ({
   initialValues,
@@ -86,9 +83,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCategoryCreated = (newCat: Category) => {
-    loadCategories(newCat.id);
-  };
+  const handleCategoryCreated = (newCat: Category) => { loadCategories(newCat.id); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,24 +106,15 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
     if (isEdit) {
       const payload: UpdateProductRequest = {
-        name: name.trim(),
-        brand: brand.trim(),
-        categoryId,
-        sellingPrice: priceNum,
-        minimumStock: minStockNum,
-        description: description.trim() || undefined,
-        isActive,
+        name: name.trim(), brand: brand.trim(), categoryId,
+        sellingPrice: priceNum, minimumStock: minStockNum,
+        description: description.trim() || undefined, isActive,
       };
       await onSubmit(payload);
     } else {
       const payload: CreateProductRequest & { initialStock?: number } = {
-        name: name.trim(),
-        brand: brand.trim(),
-        categoryId,
-        productType,
-        trackingType,
-        sellingPrice: priceNum,
-        minimumStock: minStockNum,
+        name: name.trim(), brand: brand.trim(), categoryId,
+        productType, trackingType, sellingPrice: priceNum, minimumStock: minStockNum,
         description: description.trim() || undefined,
         initialStock: parseInt(initialStock || '0', 10) || undefined,
       };
@@ -140,147 +126,85 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     <>
       <form id="product-form" onSubmit={handleSubmit} className="space-y-4">
 
-        {/* error banners */}
         {(formError || categoriesError) && (
-          <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300">
+          <div className="rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-3 py-2 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
             {formError ?? categoriesError}
           </div>
         )}
 
-        {/* ── section: product information ── */}
+        {/* product information */}
         <div>
-          <p className="mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product Information</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#86868B]">Product Information</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input
-              label="Product Name *"
-              placeholder="e.g. Samsung A15 Screen"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <Input
-              label="Brand *"
-              placeholder="e.g. Samsung, Apple, Generic"
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              required
-            />
+            <Input label="Product Name *" placeholder="e.g. Samsung A15 Screen"
+              value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input label="Brand *" placeholder="e.g. Samsung, Apple, Generic"
+              value={brand} onChange={(e) => setBrand(e.target.value)} required />
 
-            {/* category */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className={labelCls.replace(' mb-1', '')}>Category *</label>
-                <button
-                  type="button"
-                  onClick={() => setIsCreateCategoryOpen(true)}
-                  className="text-[11px] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                >
-                  + New
-                </button>
+                <button type="button" onClick={() => setIsCreateCategoryOpen(true)}
+                  className="text-[11px] text-[#0071E3] hover:text-[#0077ED]">+ New</button>
               </div>
-              <select
-                className={selectCls}
-                value={categoryId}
+              <select className={selectCls} value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                disabled={isCategoriesLoading}
-                required
-              >
-                {isCategoriesLoading ? (
-                  <option value="">Loading…</option>
-                ) : categories.length === 0 ? (
-                  <option value="">No categories — create one first</option>
-                ) : (
-                  <>
+                disabled={isCategoriesLoading} required>
+                {isCategoriesLoading ? <option value="">Loading…</option>
+                  : categories.length === 0 ? <option value="">No categories — create one first</option>
+                  : (<>
                     <option value="" disabled>Select category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </>
-                )}
+                    {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                  </>)}
               </select>
             </div>
 
-            {/* product type */}
             <div>
               <label className={labelCls}>Product Type *</label>
               {isEdit ? (
-                <input
-                  className={selectCls + ' cursor-not-allowed'}
-                  value={PRODUCT_TYPE_OPTIONS.find(o => o.value === productType)?.label ?? productType}
-                  disabled
-                />
+                <input className={selectCls + ' cursor-not-allowed'}
+                  value={PRODUCT_TYPE_OPTIONS.find(o => o.value === productType)?.label ?? productType} disabled />
               ) : (
-                <select
-                  className={selectCls}
-                  value={productType}
-                  onChange={(e) => setProductType(e.target.value as ProductType)}
-                  required
-                >
-                  {PRODUCT_TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                <select className={selectCls} value={productType}
+                  onChange={(e) => setProductType(e.target.value as ProductType)} required>
+                  {PRODUCT_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               )}
             </div>
           </div>
         </div>
 
-        {/* ── section: pricing & stock ── */}
+        {/* pricing & stock */}
         <div>
-          <p className="mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Pricing & Stock</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#86868B]">Pricing & Stock</p>
           <div className={`grid grid-cols-1 gap-3 ${!isEdit ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
-            <Input
-              label="Selling Price (ETB) *"
-              type="number"
-              step="0.01"
-              min="0.01"
-              placeholder="0.00"
-              value={sellingPrice}
-              onChange={(e) => setSellingPrice(e.target.value)}
-              required
-            />
+            <Input label="Selling Price (ETB) *" type="number" step="0.01" min="0.01" placeholder="0.00"
+              value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} required />
             {!isEdit && (
-              <Input
-                label="Initial Stock"
-                type="number"
-                min="0"
-                placeholder="0"
-                value={initialStock}
-                onChange={(e) => setInitialStock(e.target.value)}
-                helperText="Opening warehouse qty"
-              />
+              <Input label="Initial Stock" type="number" min="0" placeholder="0"
+                value={initialStock} onChange={(e) => setInitialStock(e.target.value)}
+                helperText="Opening warehouse qty" />
             )}
-            <Input
-              label="Minimum Stock *"
-              type="number"
-              min="0"
-              placeholder="5"
-              value={minimumStock}
-              onChange={(e) => setMinimumStock(e.target.value)}
-              helperText="Alert threshold"
-              required
-            />
+            <Input label="Minimum Stock *" type="number" min="0" placeholder="5"
+              value={minimumStock} onChange={(e) => setMinimumStock(e.target.value)}
+              helperText="Alert threshold" required />
           </div>
         </div>
 
-        {/* ── section: tracking type (create only) ── */}
+        {/* tracking type */}
         {!isEdit && (
           <div>
-            <p className="mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tracking Type</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#86868B]">Tracking Type</p>
             <div className="grid grid-cols-2 gap-2">
               {(['QUANTITY', 'SERIALIZED'] as TrackingType[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTrackingType(t)}
-                  className={`flex flex-col rounded border px-3 py-2.5 text-left transition-colors ${
+                <button key={t} type="button" onClick={() => setTrackingType(t)}
+                  className={`flex flex-col rounded-lg border px-3 py-2.5 text-left transition-colors ${
                     trackingType === t
-                      ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                  }`}
-                >
+                      ? 'border-[#0071E3] bg-[#0071E3] text-white'
+                      : 'border-[#D2D2D7] bg-white text-[#1D1D1F] hover:border-[#0071E3]/40 dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]'
+                  }`}>
                   <span className="text-sm font-semibold">{t === 'QUANTITY' ? 'Quantity' : 'Serialized'}</span>
-                  <span className={`mt-0.5 text-[11px] leading-snug ${trackingType === t ? 'opacity-75' : 'text-slate-400'}`}>
+                  <span className={`mt-0.5 text-[11px] leading-snug ${trackingType === t ? 'opacity-80' : 'text-[#86868B]'}`}>
                     {t === 'QUANTITY' ? 'Bulk count — screens, parts, cables' : 'Per-unit IMEI — phones, tablets, laptops'}
                   </span>
                 </button>
@@ -289,41 +213,30 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           </div>
         )}
 
-        {/* ── active toggle (edit only) ── */}
+        {/* active toggle */}
         {isEdit && (
           <div className="flex items-center gap-2.5">
-            <input
-              type="checkbox"
-              id="isActiveToggle"
-              checked={isActive}
+            <input type="checkbox" id="isActiveToggle" checked={isActive}
               onChange={(e) => setIsActive(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-            />
-            <label htmlFor="isActiveToggle" className="cursor-pointer text-xs text-slate-600 dark:text-slate-400">
+              className="h-3.5 w-3.5 rounded border-[#D2D2D7] accent-[#0071E3]" />
+            <label htmlFor="isActiveToggle" className="cursor-pointer text-xs text-[#1D1D1F] dark:text-[#F5F5F7]">
               Active — uncheck to deactivate this product
             </label>
           </div>
         )}
 
-        {/* ── description ── */}
+        {/* description */}
         <div>
-          <label className={labelCls}>Description <span className="text-slate-400">(optional)</span></label>
-          <textarea
-            rows={2}
-            className="w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          <label className={labelCls}>Description <span className="text-[#86868B]">(optional)</span></label>
+          <textarea rows={2}
+            className="w-full rounded-lg border border-[#D2D2D7] bg-white px-3 py-1.5 text-sm text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]"
             placeholder="e.g. Original AMOLED for Samsung Galaxy A15, OEM quality…"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+            value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
 
       </form>
 
-      <CreateCategoryModal
-        isOpen={isCreateCategoryOpen}
-        onClose={() => setIsCreateCategoryOpen(false)}
-        onSuccess={handleCategoryCreated}
-      />
+      <CreateCategoryModal isOpen={isCreateCategoryOpen} onClose={() => setIsCreateCategoryOpen(false)} onSuccess={handleCategoryCreated} />
     </>
   );
 };

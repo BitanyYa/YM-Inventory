@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 import { productService } from '../../../services/product.service';
-import { inventoryService } from '../../../services/inventory.service';
 import { ProductDetail, InventoryProductItem } from '../../../types/api';
 import { AppShell } from '../../../components/layout/AppShell';
 import { Badge } from '../../../components/ui/Badge';
@@ -60,16 +59,12 @@ export default function ProductDetailPage() {
 
   const showSuccess = (msg: string) => { setSuccessBanner(msg); setTimeout(() => setSuccessBanner(null), 4000); };
   const handleOpSuccess = (action: string) => { showSuccess(`${action} recorded.`); fetchProduct(); };
-
-  // Cast ProductDetail to InventoryProductItem for modal props
   const productAsInventory = product as unknown as InventoryProductItem;
 
   if (isLoading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-16">
-          <Spinner size="lg" />
-        </div>
+        <div className="flex items-center justify-center py-16"><Spinner size="lg" /></div>
       </AppShell>
     );
   }
@@ -78,8 +73,8 @@ export default function ProductDetailPage() {
     return (
       <AppShell>
         <div className="space-y-3">
-          <Link href="/products" className="text-xs text-slate-500 hover:text-slate-900">← Back to Products</Link>
-          <div className="flex items-center gap-2 rounded border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/50">
+          <Link href="/products" className="text-xs text-[#0071E3] hover:text-[#0077ED]">← Back to Products</Link>
+          <div className="flex items-center gap-2 rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-4 py-3 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
             <AlertTriangleIcon size={14} />{error ?? 'Product not found.'}
           </div>
           <Button variant="secondary" size="sm" onClick={fetchProduct}>Retry</Button>
@@ -95,20 +90,18 @@ export default function ProductDetailPage() {
     <AppShell>
       <div className="space-y-4">
 
-        {/* ── breadcrumb + heading ── */}
+        {/* breadcrumb + heading */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <Link href="/products" className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100">
-              ← Products
-            </Link>
+            <Link href="/products" className="text-xs text-[#0071E3] hover:text-[#0077ED]">← Products</Link>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">{product.name}</h2>
+              <h2 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{product.name}</h2>
               <Badge variant={product.isActive ? 'success' : 'neutral'} size="sm">
                 {product.isActive ? 'Active' : 'Inactive'}
               </Badge>
               <StockBadge status={product.stockStatus} />
             </div>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-[#6E6E73]">
               {product.brand}
               {product.category && <> · {product.category.name}</>}
               {' · '}
@@ -127,21 +120,19 @@ export default function ProductDetailPage() {
             <Button variant="secondary" size="sm" onClick={() => setStockModal('sell')}>$ Sell</Button>
             <Button variant="secondary" size="sm" onClick={() => setStockModal('return')}>↩ Return</Button>
             <Button variant="danger" size="sm" onClick={() => setStockModal('damage')}>⚠ Dmg/Loss</Button>
-            {isAdmin && (
-              <Button variant="primary" size="sm" onClick={() => setIsEditOpen(true)}>Edit</Button>
-            )}
+            {isAdmin && <Button variant="primary" size="sm" onClick={() => setIsEditOpen(true)}>Edit</Button>}
           </div>
         </div>
 
-        {/* ── banners ── */}
+        {/* banners */}
         {successBanner && (
-          <div className="flex items-center justify-between rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200">
+          <div className="flex items-center justify-between rounded-lg border border-[#30D158]/30 bg-[#E9F9EE] px-3 py-2 text-xs font-medium text-[#1A7A3A] dark:border-[#30D158]/20 dark:bg-[#0A2E1A] dark:text-[#30D158]">
             <span>{successBanner}</span>
             <button onClick={() => setSuccessBanner(null)}>✕</button>
           </div>
         )}
 
-        {/* ── info + stock row ── */}
+        {/* stats row */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             { label: 'Selling Price', value: formatCurrency(product.sellingPrice) },
@@ -149,32 +140,32 @@ export default function ProductDetailPage() {
             { label: 'Shop', value: inv.shopQuantity },
             { label: 'Total', value: inv.totalQuantity },
           ].map((s) => (
-            <div key={s.label} className="rounded border border-slate-200 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{s.label}</p>
-              <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{s.value}</p>
+            <div key={s.label} className="rounded-xl border border-[#E8E8ED] bg-white px-3 py-2.5 dark:border-[#38383A] dark:bg-[#1C1C1E]">
+              <p className="text-[10px] font-medium text-[#86868B]">{s.label}</p>
+              <p className="mt-0.5 text-lg font-bold tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">{s.value}</p>
             </div>
           ))}
         </div>
 
-        {/* ── movement summary + description ── */}
+        {/* movement summary + description */}
         {(ms || product.description) && (
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {ms && (
-              <div className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                <div className="border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Movement Summary</span>
+              <div className="rounded-xl border border-[#E8E8ED] bg-white dark:border-[#38383A] dark:bg-[#1C1C1E]">
+                <div className="border-b border-[#F5F5F7] px-4 py-2.5 dark:border-[#2C2C2E]">
+                  <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Movement Summary</span>
                 </div>
-                <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800">
+                <div className="grid grid-cols-3 divide-x divide-[#F5F5F7] dark:divide-[#2C2C2E]">
                   {[
-                    { label: 'Stock-In', value: ms.stockIn, color: 'text-sky-600 dark:text-sky-400' },
-                    { label: 'Transfers', value: ms.transfers, color: 'text-slate-700 dark:text-slate-300' },
-                    { label: 'Sales', value: ms.sales, color: 'text-emerald-600 dark:text-emerald-400' },
-                    { label: 'Returns', value: ms.returns, color: 'text-amber-600 dark:text-amber-400' },
-                    { label: 'Damages', value: ms.damages, color: 'text-red-600 dark:text-red-400' },
-                    { label: 'Losses', value: ms.losses, color: 'text-red-600 dark:text-red-400' },
+                    { label: 'Stock-In', value: ms.stockIn, color: 'text-[#0071E3] dark:text-[#0A84FF]' },
+                    { label: 'Transfers', value: ms.transfers, color: 'text-[#1D1D1F] dark:text-[#F5F5F7]' },
+                    { label: 'Sales', value: ms.sales, color: 'text-[#30D158]' },
+                    { label: 'Returns', value: ms.returns, color: 'text-[#FF9F0A]' },
+                    { label: 'Damages', value: ms.damages, color: 'text-[#FF3B30] dark:text-[#FF453A]' },
+                    { label: 'Losses', value: ms.losses, color: 'text-[#FF3B30] dark:text-[#FF453A]' },
                   ].map((item) => (
                     <div key={item.label} className="px-3 py-2.5 text-center">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{item.label}</p>
+                      <p className="text-[10px] font-medium text-[#86868B]">{item.label}</p>
                       <p className={`text-base font-bold tabular-nums ${item.color}`}>{item.value}</p>
                     </div>
                   ))}
@@ -182,51 +173,49 @@ export default function ProductDetailPage() {
               </div>
             )}
             {product.description && (
-              <div className="rounded border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
-                <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">{product.description}</p>
+              <div className="rounded-xl border border-[#E8E8ED] bg-white px-4 py-3 dark:border-[#38383A] dark:bg-[#1C1C1E]">
+                <p className="mb-1.5 text-xs font-semibold text-[#86868B]">Description</p>
+                <p className="text-xs leading-relaxed text-[#1D1D1F] dark:text-[#F5F5F7]">{product.description}</p>
               </div>
             )}
           </div>
         )}
 
-        {/* ── serialized units ── */}
+        {/* serialized units */}
         {product.trackingType === 'SERIALIZED' && (
-          <div className="rounded border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <div className="rounded-xl border border-[#E8E8ED] bg-white dark:border-[#38383A] dark:bg-[#1C1C1E]">
+            <div className="flex items-center justify-between border-b border-[#F5F5F7] px-4 py-2.5 dark:border-[#2C2C2E]">
+              <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
                 Serialized Units
-                {product.units && <span className="ml-1.5 text-slate-400">({product.units.length})</span>}
+                {product.units && <span className="ml-1.5 text-[#86868B]">({product.units.length})</span>}
               </span>
               {product.unitSummary && (
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-[#6E6E73]">
                   WH: {product.unitSummary.warehouseAvailable} · Shop: {product.unitSummary.shopAvailable}
                 </span>
               )}
             </div>
             {!product.units || product.units.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-slate-400">No units recorded.</p>
+              <p className="px-4 py-6 text-center text-xs text-[#86868B]">No units recorded.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60">
+                    <tr className="border-b border-[#F5F5F7] bg-[#F5F5F7] dark:border-[#2C2C2E] dark:bg-[#2C2C2E]">
                       {['IMEI', 'Serial', 'Storage/Color', 'Location', 'Status', 'Purchase Price'].map((h) => (
-                        <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-slate-400">{h}</th>
+                        <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
                     {product.units.map((u) => (
-                      <tr key={u.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                        <td className="px-3 py-2 font-mono text-slate-900 dark:text-slate-100">{u.imei ?? '—'}</td>
-                        <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-400">{u.serialNumber ?? '—'}</td>
-                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                          {[u.storage, u.color].filter(Boolean).join(' / ') || '—'}
-                        </td>
-                        <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">{u.location}</td>
+                      <tr key={u.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
+                        <td className="px-3 py-2 font-mono text-[#1D1D1F] dark:text-[#F5F5F7]">{u.imei ?? '—'}</td>
+                        <td className="px-3 py-2 font-mono text-[#6E6E73]">{u.serialNumber ?? '—'}</td>
+                        <td className="px-3 py-2 text-[#6E6E73]">{[u.storage, u.color].filter(Boolean).join(' / ') || '—'}</td>
+                        <td className="px-3 py-2 font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">{u.location}</td>
                         <td className="px-3 py-2"><UnitStatusBadge status={u.status} /></td>
-                        <td className="px-3 py-2 tabular-nums text-slate-700 dark:text-slate-300">
+                        <td className="px-3 py-2 tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">
                           {u.purchasePrice != null ? formatCurrency(u.purchasePrice) : '—'}
                         </td>
                       </tr>
@@ -238,16 +227,16 @@ export default function ProductDetailPage() {
           </div>
         )}
 
-        {/* ── min stock info strip ── */}
-        <div className="flex items-center gap-4 rounded border border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-          <span>Min stock threshold: <strong className="text-slate-700 dark:text-slate-300">{product.minimumStock}</strong></span>
-          <span>Product type: <strong className="text-slate-700 dark:text-slate-300">{product.productType}</strong></span>
-          {product.createdAt && <span className="hidden sm:block">Added: <strong className="text-slate-700 dark:text-slate-300">{formatDate(product.createdAt)}</strong></span>}
+        {/* info strip */}
+        <div className="flex items-center gap-4 rounded-xl border border-[#E8E8ED] bg-[#F5F5F7] px-4 py-2 text-xs text-[#6E6E73] dark:border-[#38383A] dark:bg-[#2C2C2E]">
+          <span>Min stock: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{product.minimumStock}</strong></span>
+          <span>Type: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{product.productType}</strong></span>
+          {product.createdAt && <span className="hidden sm:block">Added: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{formatDate(product.createdAt)}</strong></span>}
         </div>
 
       </div>
 
-      {/* ── modals ── */}
+      {/* modals */}
       <EditProductModal product={product} isOpen={isEditOpen} onClose={() => setIsEditOpen(false)}
         onSuccess={() => { showSuccess('Product updated.'); fetchProduct(); }} />
       <ReceiveStockModal isOpen={stockModal === 'receive'} product={productAsInventory}
