@@ -1,5 +1,6 @@
 import { apiClient } from '../lib/api-client';
 import {
+  InventoryAlertsResponse,
   InventoryListResponse,
   InventoryProductItem,
   InventorySummaryResponse,
@@ -89,6 +90,31 @@ export const inventoryService = {
       data: (raw.data ?? []).map(flattenItem),
       meta: raw.meta,
     };
+  },
+
+  /**
+   * GET /inventory/alerts
+   * Products that are LOW_STOCK or OUT_OF_STOCK, sorted by urgency.
+   */
+  async getInventoryAlerts(params: {
+    page?: number;
+    limit?: number;
+    alertType?: 'LOW_STOCK' | 'OUT_OF_STOCK';
+    search?: string;
+    categoryId?: string;
+    productType?: string;
+    trackingType?: string;
+  } = {}): Promise<InventoryAlertsResponse> {
+    const q = new URLSearchParams();
+    if (params.page) q.append('page', params.page.toString());
+    if (params.limit) q.append('limit', params.limit.toString());
+    if (params.alertType) q.append('alertType', params.alertType);
+    if (params.search?.trim()) q.append('search', params.search.trim());
+    if (params.categoryId) q.append('categoryId', params.categoryId);
+    if (params.productType) q.append('productType', params.productType);
+    if (params.trackingType) q.append('trackingType', params.trackingType);
+    const qs = q.toString();
+    return apiClient<InventoryAlertsResponse>(`/inventory/alerts${qs ? `?${qs}` : ''}`);
   },
 
   /**
