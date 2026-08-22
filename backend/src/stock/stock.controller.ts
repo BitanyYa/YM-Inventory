@@ -18,6 +18,7 @@ import { SellStockDto } from './dto/sell-stock.dto';
 import { ReturnStockDto } from './dto/return-stock.dto';
 import { QueryStockMovementDto } from './dto/query-stock-movement.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { ReconcileStockDto } from './dto/reconcile-stock.dto';
 import { QueryStockTransferDto } from './dto/query-stock-transfer.dto';
 import { QueryStockReceiptDto } from './dto/query-stock-receipt.dto';
 import { QueryStockSaleDto } from './dto/query-stock-sale.dto';
@@ -409,5 +410,30 @@ export class StockController {
     @GetUser('id') userId: string,
   ) {
     return this.stockService.adjustStock(dto, userId);
+  }
+
+  @Post('reconcile')
+  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @ApiOperation({
+    summary:
+      'Perform physical inventory audit reconciliation for QUANTITY or SERIALIZED products (ADMIN only)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Inventory successfully reconciled to physical count',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation error, invalid physical count, or unit status mismatch',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden (Requires ADMIN role)' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  async reconcileStock(
+    @Body() dto: ReconcileStockDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.stockService.reconcileStock(dto, userId);
   }
 }

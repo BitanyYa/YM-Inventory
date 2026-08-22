@@ -19,6 +19,7 @@ import { QueryStockReturnDto } from './dto/query-stock-return.dto';
 import { QueryMovementSummaryDto } from './dto/query-movement-summary.dto';
 import { DamageStockDto } from './dto/damage-stock.dto';
 import { LossStockDto } from './dto/loss-stock.dto';
+import { ReconcileStockDto } from './dto/reconcile-stock.dto';
 import { QueryStockInDto } from './dto/query-stock-in.dto';
 import { QueryStockDamageDto } from './dto/query-stock-damage.dto';
 import { QueryStockAdjustmentDto } from './dto/query-stock-adjustment.dto';
@@ -1590,6 +1591,7 @@ export class StockService {
       [MovementType.RETURN]: 0,
       [MovementType.DAMAGE]: 0,
       [MovementType.LOSS]: 0,
+      [MovementType.ADJUSTMENT]: 0,
     };
 
     const quantityByMovementType: Record<MovementType, number> = {
@@ -1599,6 +1601,7 @@ export class StockService {
       [MovementType.RETURN]: 0,
       [MovementType.DAMAGE]: 0,
       [MovementType.LOSS]: 0,
+      [MovementType.ADJUSTMENT]: 0,
     };
 
     const byLocation: Record<Location, number> = {
@@ -3554,5 +3557,280 @@ export class StockService {
         },
       },
     };
+  }
+
+  async reconcileStock(dto: ReconcileStockDto, userId: string) {
+    if (dto.location !== Location.WAREHOUSE && dto.location !== Location.SHOP) {
+      throw new BadRequestException('location must be either WAREHOUSE or SHOP');
+    }
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID "${dto.productId}" not found`);
+    }
+
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `Product "${product.name}" is inactive/soft-deleted and cannot undergo inventory reconciliation`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      /* ═════════════════════════════════════════════════════════════════════ */
+      /* 1. QUANTITY TRACKED RECONCILIATION                                     */
+      /* ═════════════════════════════════════════════════════════════════════ */
+      if (product.trackingType === TrackingType.QUANTITY) {
+        if (
+          dto.physicalCount === undefined ||
+          dto.physicalCount === null ||
+          dto.physicalCount < 0
+        ) {
+          throw new BadRequestException(
+            'physicalCount is required and must be at least 0 for QUANTITY products',
+          );
+        }
+
+        const existingInventory = await tx.inventory.findUnique({
+          where: {
+            productId_location: {
+              productId: product.id,
+              location: dto.location,
+            },
+          },
+        });
+
+        const currentQuantity = existingInventory?.quantity || 0;
+        const difference = dto.physicalCount - currentQuantity;
+
+        // Zero discrepancy: no mutation
+        if (difference === 0) {
+          return {
+            message: 'No inventory adjustment needed. Physical count matches system quantity.',
+            reconciled: false,
+            productId: product.id,
+            productName: product.name,
+            location: dto.location,
+            systemQuantity: currentQuantity,
+            physicalCount: dto.physicalCount,
+            difference: 0,
+          };
+        }
+
+        let updatedInventory;
+        if (existingInventory) {
+          updatedInventory = await tx.inventory.update({
+            where: { id: existingInventory.id },
+            data: {
+              quantity: dto.physicalCount,
+            },
+          });
+        } else {
+          updatedInventory = await tx.inventory.create({
+            data: {
+              productId: product.id,
+              location: dto.location,
+              quantity: dto.physicalCount,
+            },
+          });
+        }
+
+        // Record StockMovement with MovementType.ADJUSTMENT
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            movementType: MovementType.ADJUSTMENT,
+            quantity: Math.abs(difference),
+            fromLocation: difference < 0 ? dto.location : null,
+            toLocation: difference > 0 ? dto.location : null,
+            createdById: userId,
+            note: dto.note
+              ? `${dto.note} (Reconciled from ${currentQuantity} to ${dto.physicalCount}, diff: ${difference > 0 ? '+' : ''}${difference})`
+              : `Physical inventory audit reconciliation: system ${currentQuantity} → counted ${dto.physicalCount} (${difference > 0 ? '+' : ''}${difference})`,
+          },
+        });
+
+        return {
+          message: `Inventory reconciled successfully. System quantity adjusted by ${difference > 0 ? '+' : ''}${difference}.`,
+          reconciled: true,
+          movementId: movement.id,
+          productId: product.id,
+          productName: product.name,
+          location: dto.location,
+          previousQuantity: currentQuantity,
+          physicalCount: dto.physicalCount,
+          difference,
+          inventory: updatedInventory,
+          movement,
+        };
+      }
+
+      /* ═════════════════════════════════════════════════════════════════════ */
+      /* 2. SERIALIZED TRACKED RECONCILIATION                                   */
+      /* ═════════════════════════════════════════════════════════════════════ */
+      if (product.trackingType === TrackingType.SERIALIZED) {
+        if (!dto.verifiedUnitIds) {
+          throw new BadRequestException(
+            'verifiedUnitIds array is required for SERIALIZED product reconciliation',
+          );
+        }
+
+        if (new Set(dto.verifiedUnitIds).size !== dto.verifiedUnitIds.length) {
+          throw new BadRequestException('Duplicate unit IDs found in verifiedUnitIds request');
+        }
+
+        // Query active units currently recorded at target location
+        const activeUnitsAtLocation = await tx.productUnit.findMany({
+          where: {
+            productId: product.id,
+            location: dto.location,
+            status: dto.location === Location.WAREHOUSE ? UnitStatus.AVAILABLE : UnitStatus.IN_SHOP,
+          },
+        });
+
+        // Query any units previously marked UNACCOUNTED at target location
+        const unaccountedUnitsAtLocation = await tx.productUnit.findMany({
+          where: {
+            productId: product.id,
+            location: dto.location,
+            status: UnitStatus.UNACCOUNTED,
+          },
+        });
+
+        const activeUnitIdsSet = new Set(activeUnitsAtLocation.map((u) => u.id));
+        const unaccountedUnitIdsSet = new Set(unaccountedUnitsAtLocation.map((u) => u.id));
+        const verifiedSet = new Set(dto.verifiedUnitIds);
+
+        // Identify missing units (were active at location, but not in verified set)
+        const missingUnits = activeUnitsAtLocation.filter((u) => !verifiedSet.has(u.id));
+
+        // Identify found units (were previously unaccounted at location, but now verified in physical audit)
+        const foundUnits = unaccountedUnitsAtLocation.filter((u) => verifiedSet.has(u.id));
+
+        // Validate all verifiedUnitIds: each must be either active at location OR unaccounted at location
+        for (const unitId of dto.verifiedUnitIds) {
+          const isCurrentlyActive = activeUnitIdsSet.has(unitId);
+          const isPreviouslyUnaccounted = unaccountedUnitIdsSet.has(unitId);
+
+          if (!isCurrentlyActive && !isPreviouslyUnaccounted) {
+            const unitInDb = await tx.productUnit.findUnique({ where: { id: unitId } });
+            if (!unitInDb) {
+              throw new NotFoundException(`ProductUnit "${unitId}" not found in system`);
+            }
+            if (unitInDb.productId !== product.id) {
+              throw new BadRequestException(`ProductUnit "${unitId}" does not belong to product "${product.name}"`);
+            }
+            throw new BadRequestException(
+              `ProductUnit "${unitId}" is at location ${unitInDb.location} with status ${unitInDb.status}. It cannot be reconciled at ${dto.location}.`,
+            );
+          }
+        }
+
+        // Compute discrepancy
+        const previousQuantity = activeUnitsAtLocation.length;
+        const physicalCount = dto.verifiedUnitIds.length;
+        const difference = physicalCount - previousQuantity;
+
+        if (missingUnits.length === 0 && foundUnits.length === 0 && difference === 0) {
+          return {
+            message: 'No inventory adjustment needed. Verified units match active system units.',
+            reconciled: false,
+            productId: product.id,
+            productName: product.name,
+            location: dto.location,
+            systemQuantity: previousQuantity,
+            physicalCount,
+            difference: 0,
+          };
+        }
+
+        // Mark missing units as UNACCOUNTED
+        if (missingUnits.length > 0) {
+          await tx.productUnit.updateMany({
+            where: { id: { in: missingUnits.map((u) => u.id) } },
+            data: { status: UnitStatus.UNACCOUNTED },
+          });
+        }
+
+        // Restore found units back to active status (AVAILABLE for Warehouse, IN_SHOP for Shop)
+        if (foundUnits.length > 0) {
+          const targetStatus = dto.location === Location.WAREHOUSE ? UnitStatus.AVAILABLE : UnitStatus.IN_SHOP;
+          await tx.productUnit.updateMany({
+            where: { id: { in: foundUnits.map((u) => u.id) } },
+            data: { status: targetStatus },
+          });
+        }
+
+        // Synchronize Inventory quantity record to match exact count of verified active units
+        let updatedInventory;
+        const existingInventory = await tx.inventory.findUnique({
+          where: {
+            productId_location: {
+              productId: product.id,
+              location: dto.location,
+            },
+          },
+        });
+
+        if (existingInventory) {
+          updatedInventory = await tx.inventory.update({
+            where: { id: existingInventory.id },
+            data: { quantity: physicalCount },
+          });
+        } else {
+          updatedInventory = await tx.inventory.create({
+            data: {
+              productId: product.id,
+              location: dto.location,
+              quantity: physicalCount,
+            },
+          });
+        }
+
+        // Record StockMovement with MovementType.ADJUSTMENT
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            movementType: MovementType.ADJUSTMENT,
+            quantity: Math.abs(difference),
+            fromLocation: difference < 0 ? dto.location : null,
+            toLocation: difference > 0 ? dto.location : null,
+            createdById: userId,
+            note: dto.note
+              ? `${dto.note} (Serialized audit: ${missingUnits.length} missing, ${foundUnits.length} found)`
+              : `Physical inventory audit: verified ${physicalCount} units (${missingUnits.length} missing, ${foundUnits.length} restored)`,
+          },
+        });
+
+        // Link movement units
+        const affectedUnitIds = [...missingUnits.map((u) => u.id), ...foundUnits.map((u) => u.id)];
+        for (const uId of affectedUnitIds) {
+          await tx.stockMovementUnit.create({
+            data: {
+              stockMovementId: movement.id,
+              productUnitId: uId,
+            },
+          });
+        }
+
+        return {
+          message: `Serialized inventory reconciled successfully. System quantity adjusted by ${difference > 0 ? '+' : ''}${difference}.`,
+          reconciled: true,
+          movementId: movement.id,
+          productId: product.id,
+          productName: product.name,
+          location: dto.location,
+          previousQuantity,
+          physicalCount,
+          difference,
+          missingUnitsCount: missingUnits.length,
+          foundUnitsCount: foundUnits.length,
+          inventory: updatedInventory,
+          movement,
+        };
+      }
+    });
   }
 }
