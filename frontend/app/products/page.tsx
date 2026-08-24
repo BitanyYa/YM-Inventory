@@ -16,6 +16,7 @@ import { CreateProductModal } from '../../components/products/CreateProductModal
 import { EditProductModal } from '../../components/products/EditProductModal';
 import { CreateCategoryModal } from '../../components/categories/CreateCategoryModal';
 import { EditCategoryModal } from '../../components/categories/EditCategoryModal';
+import { ManageCategoriesModal } from '../../components/categories/ManageCategoriesModal';
 import { formatCurrency } from '../../lib/utils';
 import { SearchIcon, AlertTriangleIcon } from '../../components/ui/Icons';
 
@@ -34,6 +35,115 @@ function SkelRow() {
         </td>
       ))}
     </tr>
+  );
+}
+
+interface ProductActionMenuProps {
+  product: ProductItem;
+  isAdmin: boolean;
+  onEdit: (product: ProductItem) => void;
+  onToggleStatus: (product: ProductItem) => void;
+}
+
+function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: ProductActionMenuProps) {
+  const [open, setOpen] = React.useState(false);
+  const [coords, setCoords] = React.useState<{ top?: number; bottom?: number; right: number } | null>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  const updateCoords = React.useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuHeight = 120;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const right = window.innerWidth - rect.right;
+
+      if (spaceBelow < menuHeight && rect.top > menuHeight) {
+        setCoords({ bottom: window.innerHeight - rect.top + 4, right });
+      } else {
+        setCoords({ top: rect.bottom + 4, right });
+      }
+    }
+  }, []);
+
+  const toggle = () => {
+    if (!open) { updateCoords(); setOpen(true); }
+    else setOpen(false);
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handleScrollOrResize = () => setOpen(false);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current && !menuRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <>
+      <Button ref={buttonRef} variant="secondary" size="sm" onClick={toggle}>
+        Manage ▾
+      </Button>
+      {open && coords && (
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            top: coords.top !== undefined ? `${coords.top}px` : undefined,
+            bottom: coords.bottom !== undefined ? `${coords.bottom}px` : undefined,
+            right: `${coords.right}px`,
+          }}
+          className="z-50 w-36 overflow-hidden rounded-xl border border-[#E8E8ED] bg-white shadow-xl dark:border-[#38383A] dark:bg-[#1C1C1E]"
+        >
+          <Link
+            href={`/products/${product.id}`}
+            className="block px-3 py-2 text-left text-xs font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]"
+            onClick={() => setOpen(false)}
+          >
+            View Product
+          </Link>
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onEdit(product); }}
+                className="block w-full px-3 py-2 text-left text-xs font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]"
+              >
+                Edit Product
+              </button>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onToggleStatus(product); }}
+                className={`block w-full px-3 py-2 text-left text-xs font-medium transition-colors ${
+                  product.isActive
+                    ? 'text-[#FF3B30] hover:bg-[#FFECEB] dark:text-[#FF453A] dark:hover:bg-[#2E0A09]'
+                    : 'text-[#30D158] hover:bg-[#E9F9EE] dark:text-[#30D158] dark:hover:bg-[#0A2E1A]'
+                }`}
+              >
+                {product.isActive ? 'Deactivate' : 'Activate'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -61,7 +171,10 @@ export default function ProductsPage() {
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
+  const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [statusToggleProduct, setStatusToggleProduct] = useState<ProductItem | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
@@ -100,6 +213,22 @@ export default function ProductsPage() {
   const resetFilters = () => { setSearch(''); setProductType(''); setTrackingType(''); setCategoryId(''); setIsActiveFilter('true'); setStockStatusFilter(''); setPage(1); };
   const hasFilters = !!(debouncedSearch || productType || trackingType || categoryId || stockStatusFilter || isActiveFilter !== 'true');
 
+  const handleConfirmStatusToggle = async () => {
+    if (!statusToggleProduct) return;
+    setStatusLoading(true);
+    try {
+      const nextState = !statusToggleProduct.isActive;
+      await productService.updateProductStatus(statusToggleProduct.id, nextState);
+      showSuccess(`Product "${statusToggleProduct.name}" ${nextState ? 'activated' : 'deactivated'}.`);
+      setStatusToggleProduct(null);
+      fetchProducts();
+    } catch (err: unknown) {
+      setError((err as { message?: string })?.message || 'Failed to update product status.');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   /* shared input/select class */
   const inputCls = 'rounded-lg border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]';
 
@@ -117,7 +246,7 @@ export default function ProductsPage() {
           </div>
           {isAdmin && (
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setIsCreateCategoryOpen(true)}>+ Category</Button>
+              <Button variant="secondary" size="sm" onClick={() => setIsManageCategoriesOpen(true)}>Manage Categories</Button>
               <Button variant="primary" size="sm" onClick={() => setIsCreateProductOpen(true)}>+ Product</Button>
             </div>
           )}
@@ -252,13 +381,20 @@ export default function ProductsPage() {
                       <td className="px-3 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.warehouseQuantity}</td>
                       <td className="px-3 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.shopQuantity}</td>
                       <td className="px-3 py-2.5 tabular-nums font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.totalQuantity}</td>
-                      <td className="px-3 py-2.5"><StockBadge status={p.stockStatus} /></td>
-                      <td className="px-3 py-2.5 tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">{formatCurrency(p.sellingPrice)}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <Link href={`/products/${p.id}`}><Button variant="ghost" size="sm">View</Button></Link>
-                          {isAdmin && <Button variant="secondary" size="sm" onClick={() => setEditingProduct(p)}>Edit</Button>}
+                          <StockBadge status={p.stockStatus} />
+                          {!p.isActive && <Badge variant="neutral" size="sm">Inactive</Badge>}
                         </div>
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">{formatCurrency(p.sellingPrice)}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        <ProductActionMenu
+                          product={p}
+                          isAdmin={isAdmin}
+                          onEdit={(prod) => setEditingProduct(prod)}
+                          onToggleStatus={(prod) => setStatusToggleProduct(prod)}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -284,7 +420,10 @@ export default function ProductsPage() {
                     </Link>
                     <p className="text-[11px] text-[#86868B]">{p.brand} · {p.category?.name ?? 'Uncategorized'}</p>
                   </div>
-                  <StockBadge status={p.stockStatus} />
+                  <div className="flex items-center gap-1">
+                    <StockBadge status={p.stockStatus} />
+                    {!p.isActive && <Badge variant="neutral" size="sm">Inactive</Badge>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-lg bg-[#F5F5F7] px-3 py-2 text-xs dark:bg-[#2C2C2E]">
                   <span className="text-[#6E6E73]">WH: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.warehouseQuantity}</strong></span>
@@ -296,10 +435,12 @@ export default function ProductsPage() {
                   <Badge variant={p.trackingType === 'SERIALIZED' ? 'info' : 'neutral'} size="sm">
                     {p.trackingType === 'SERIALIZED' ? 'Serialized' : 'Quantity'}
                   </Badge>
-                  <div className="flex gap-1.5">
-                    <Link href={`/products/${p.id}`}><Button variant="ghost" size="sm">View</Button></Link>
-                    {isAdmin && <Button variant="secondary" size="sm" onClick={() => setEditingProduct(p)}>Edit</Button>}
-                  </div>
+                  <ProductActionMenu
+                    product={p}
+                    isAdmin={isAdmin}
+                    onEdit={(prod) => setEditingProduct(prod)}
+                    onToggleStatus={(prod) => setStatusToggleProduct(prod)}
+                  />
                 </div>
               </div>
             ))}
@@ -330,6 +471,43 @@ export default function ProductsPage() {
         onSuccess={(cat) => { showSuccess(`Category "${cat.name}" created.`); fetchCategories(); setCategoryId(cat.id); }} />
       <EditCategoryModal category={editingCategory} isOpen={!!editingCategory} onClose={() => setEditingCategory(null)}
         onSuccess={(cat) => { showSuccess(`Category "${cat.name}" updated.`); fetchCategories(); fetchProducts(); }} />
+      <ManageCategoriesModal
+        isOpen={isManageCategoriesOpen}
+        onClose={() => setIsManageCategoriesOpen(false)}
+        onEditCategory={(cat) => setEditingCategory(cat)}
+        onCreateCategory={() => setIsCreateCategoryOpen(true)}
+        onCategoriesUpdated={() => { fetchCategories(); fetchProducts(); }}
+      />
+
+      {/* deactivation confirm modal */}
+      {statusToggleProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setStatusToggleProduct(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl border border-[#D2D2D7] bg-white p-4 shadow-2xl dark:border-[#38383A] dark:bg-[#1C1C1E]">
+            <h3 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              {statusToggleProduct.isActive ? 'Deactivate Product?' : 'Activate Product?'}
+            </h3>
+            <p className="mt-1.5 text-xs text-[#6E6E73] leading-relaxed">
+              {statusToggleProduct.isActive
+                ? `Deactivating "${statusToggleProduct.name}" removes it from active inventory operations. Historical inventory and movement records will be preserved.`
+                : `Activating "${statusToggleProduct.name}" restores it to active inventory workflows.`}
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-4">
+              <Button variant="secondary" size="sm" disabled={statusLoading} onClick={() => setStatusToggleProduct(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant={statusToggleProduct.isActive ? 'danger' : 'primary'}
+                size="sm"
+                isLoading={statusLoading}
+                onClick={handleConfirmStatusToggle}
+              >
+                {statusToggleProduct.isActive ? 'Confirm Deactivate' : 'Confirm Activate'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

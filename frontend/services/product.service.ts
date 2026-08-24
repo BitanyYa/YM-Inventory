@@ -50,4 +50,14 @@ export const productService = {
       body: JSON.stringify(data),
     });
   },
+
+  async updateProductStatus(
+    id: string,
+    isActive: boolean,
+  ): Promise<{ data: ProductItem } | ProductItem> {
+    return apiClient<{ data: ProductItem } | ProductItem>(`/products/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    });
+  },
 };

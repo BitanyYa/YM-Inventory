@@ -165,8 +165,21 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                 <input className={selectCls + ' cursor-not-allowed'}
                   value={PRODUCT_TYPE_OPTIONS.find(o => o.value === productType)?.label ?? productType} disabled />
               ) : (
-                <select className={selectCls} value={productType}
-                  onChange={(e) => setProductType(e.target.value as ProductType)} required>
+                <select
+                  className={selectCls}
+                  value={productType}
+                  onChange={(e) => {
+                    const newType = e.target.value as ProductType;
+                    setProductType(newType);
+                    // Smart default recommendation based on product type
+                    if (newType === 'ACCESSORY' || newType === 'OTHER') {
+                      setTrackingType('QUANTITY');
+                    } else if (['PHONE', 'TABLET', 'LAPTOP', 'SMART_WATCH'].includes(newType)) {
+                      setTrackingType('SERIALIZED');
+                    }
+                  }}
+                  required
+                >
                   {PRODUCT_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               )}
