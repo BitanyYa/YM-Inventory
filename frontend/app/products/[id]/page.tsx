@@ -17,6 +17,7 @@ import { SellStockModal } from '../../../components/inventory/SellStockModal';
 import { ReturnStockModal } from '../../../components/inventory/ReturnStockModal';
 import { DamageLossModal } from '../../../components/inventory/DamageLossModal';
 import { ReconcileStockModal } from '../../../components/inventory/ReconcileStockModal';
+import { UnitDetailsModal } from '../../../components/products/UnitDetailsModal';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import { AlertTriangleIcon } from '../../../components/ui/Icons';
 
@@ -30,9 +31,11 @@ function StockBadge({ status }: { status: string }) {
 }
 
 function UnitStatusBadge({ status }: { status: string }) {
-  if (status === 'AVAILABLE' || status === 'IN_SHOP') return <Badge variant="success" size="sm">{status}</Badge>;
-  if (status === 'SOLD') return <Badge variant="neutral" size="sm">SOLD</Badge>;
-  return <Badge variant="danger" size="sm">{status}</Badge>;
+  if (status === 'AVAILABLE') return <Badge variant="success" size="sm">Available</Badge>;
+  if (status === 'IN_SHOP') return <Badge variant="info" size="sm">In Shop</Badge>;
+  if (status === 'SOLD') return <Badge variant="neutral" size="sm">Sold</Badge>;
+  if (status === 'RETURNED') return <Badge variant="warning" size="sm">Returned</Badge>;
+  return <Badge variant="danger" size="sm">{status.replace('_', ' ')}</Badge>;
 }
 
 export default function ProductDetailPage() {
@@ -47,6 +50,10 @@ export default function ProductDetailPage() {
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [stockModal, setStockModal] = useState<StockModal>(null);
+
+  /* ── Unit details modal state ── */
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
 
   const fetchProduct = useCallback(async () => {
     if (!productId) return;
@@ -203,22 +210,52 @@ export default function ProductDetailPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-[#F5F5F7] bg-[#F5F5F7] dark:border-[#2C2C2E] dark:bg-[#2C2C2E]">
-                      {['IMEI', 'Serial', 'Storage/Color', 'Location', 'Status', 'Purchase Price'].map((h) => (
-                        <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
-                      ))}
+                    <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] text-[11px] font-bold uppercase tracking-wider text-[#64748B] dark:border-[#334155] dark:bg-[#0F172A]">
+                      <th className="px-3.5 py-2.5">IMEI</th>
+                      <th className="px-3.5 py-2.5">Serial</th>
+                      <th className="px-3.5 py-2.5">Storage / Color</th>
+                      <th className="px-3.5 py-2.5">Location</th>
+                      <th className="px-3.5 py-2.5">Status</th>
+                      <th className="px-3.5 py-2.5 text-right">Purchase Price</th>
+                      <th className="px-4 py-2.5 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
+                  <tbody className="divide-y divide-[#F1F5F9] dark:divide-[#334155]">
                     {product.units.map((u) => (
-                      <tr key={u.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
-                        <td className="px-3 py-2 font-mono text-[#1D1D1F] dark:text-[#F5F5F7]">{u.imei ?? '—'}</td>
-                        <td className="px-3 py-2 font-mono text-[#6E6E73]">{u.serialNumber ?? '—'}</td>
-                        <td className="px-3 py-2 text-[#6E6E73]">{[u.storage, u.color].filter(Boolean).join(' / ') || '—'}</td>
-                        <td className="px-3 py-2 font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">{u.location}</td>
-                        <td className="px-3 py-2"><UnitStatusBadge status={u.status} /></td>
-                        <td className="px-3 py-2 tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">
+                      <tr
+                        key={u.id}
+                        onClick={() => {
+                          setSelectedUnitId(u.id);
+                          setIsUnitModalOpen(true);
+                        }}
+                        className="cursor-pointer hover:bg-[#EFF6FF]/50 dark:hover:bg-[#334155]/50 transition-colors"
+                      >
+                        <td className="px-3.5 py-2.5 font-mono font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{u.imei ?? '—'}</td>
+                        <td className="px-3.5 py-2.5 font-mono text-[#64748B]">{u.serialNumber ?? '—'}</td>
+                        <td className="px-3.5 py-2.5 font-medium text-[#0F172A] dark:text-[#F8FAFC]">
+                          {[u.storage ? `${u.storage} GB` : null, u.color].filter(Boolean).join(' / ') || '—'}
+                        </td>
+                        <td className="px-3.5 py-2.5">
+                          <Badge variant="info" size="sm" className="font-bold">
+                            {u.location === 'WAREHOUSE' ? 'Warehouse' : 'Shop'}
+                          </Badge>
+                        </td>
+                        <td className="px-3.5 py-2.5"><UnitStatusBadge status={u.status} /></td>
+                        <td className="px-3.5 py-2.5 text-right tabular-nums font-bold text-[#0F172A] dark:text-[#F8FAFC]">
                           {u.purchasePrice != null ? formatCurrency(u.purchasePrice) : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedUnitId(u.id);
+                              setIsUnitModalOpen(true);
+                            }}
+                          >
+                            View
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -230,10 +267,10 @@ export default function ProductDetailPage() {
         )}
 
         {/* info strip */}
-        <div className="flex items-center gap-4 rounded-xl border border-[#E8E8ED] bg-[#F5F5F7] px-4 py-2 text-xs text-[#6E6E73] dark:border-[#38383A] dark:bg-[#2C2C2E]">
-          <span>Min stock: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{product.minimumStock}</strong></span>
-          <span>Type: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{product.productType}</strong></span>
-          {product.createdAt && <span className="hidden sm:block">Added: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{formatDate(product.createdAt)}</strong></span>}
+        <div className="flex items-center gap-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2 text-xs font-semibold text-[#64748B] dark:border-[#334155] dark:bg-[#0F172A]">
+          <span>Min stock: <strong className="text-[#0F172A] dark:text-[#F8FAFC]">{product.minimumStock}</strong></span>
+          <span>Type: <strong className="text-[#0F172A] dark:text-[#F8FAFC]">{product.productType}</strong></span>
+          {product.createdAt && <span className="hidden sm:block">Added: <strong className="text-[#0F172A] dark:text-[#F8FAFC]">{formatDate(product.createdAt)}</strong></span>}
         </div>
 
       </div>
@@ -252,7 +289,17 @@ export default function ProductDetailPage() {
       <DamageLossModal isOpen={stockModal === 'damage'} product={productAsInventory}
         onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Adjustment')} />
       <ReconcileStockModal isOpen={stockModal === 'reconcile'} product={productAsInventory}
-        onClose={() => setStockModal(null)} onSuccess={(msg) => handleOpSuccess(msg || 'Reconciliation')} />
+        onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Reconciliation')} />
+      
+      {/* Unit details and history modal */}
+      <UnitDetailsModal
+        unitId={selectedUnitId}
+        isOpen={isUnitModalOpen}
+        onClose={() => {
+          setIsUnitModalOpen(false);
+          setSelectedUnitId(null);
+        }}
+      />
     </AppShell>
   );
 }

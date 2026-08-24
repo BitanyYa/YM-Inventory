@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { AlertTriangleIcon } from '../../components/ui/Icons';
+import { AlertTriangleIcon, EyeIcon, EyeOffIcon } from '../../components/ui/Icons';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -82,12 +83,23 @@ export default function LoginPage() {
 
             <Input
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               required
+              rightElement={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="rounded-md p-1 text-[#94A3B8] transition-colors hover:text-[#0F172A] focus:outline-none dark:hover:text-[#F8FAFC]"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                </button>
+              }
             />
 
             <Button

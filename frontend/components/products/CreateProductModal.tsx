@@ -23,13 +23,14 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({ isOpen, 
   const handleSubmit = async (data: CreateProductRequest & { initialStock?: number }) => {
     setIsLoading(true); setError(null);
     try {
-      const res = await productService.createProduct(data);
+      const { initialStock, ...productPayload } = data;
+      const res = await productService.createProduct(productPayload);
       const created = (res as { data?: { id?: string } })?.data ?? (res as { id?: string });
-      if (data.initialStock && data.initialStock > 0 && created?.id) {
+      if (initialStock && initialStock > 0 && created?.id) {
         try {
           await apiClient('/stock/receive', {
             method: 'POST',
-            body: JSON.stringify({ productId: created.id, quantity: data.initialStock, note: 'Initial stock on product creation' }),
+            body: JSON.stringify({ productId: created.id, quantity: initialStock, note: 'Initial stock on product creation' }),
           });
         } catch { /* non-critical */ }
       }

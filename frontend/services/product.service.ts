@@ -6,11 +6,20 @@ import {
   QueryProductParams,
   CreateProductRequest,
   UpdateProductRequest,
+  ProductUnitItem,
+  QueryProductUnitParams,
+  UnitHistoryResponse,
+  PaginationMeta,
 } from '../types/api';
 
 const productCache = new Map<string, { data: ProductListResponse; timestamp: number }>();
 const pendingRequests = new Map<string, Promise<ProductListResponse>>();
 const CACHE_TTL_MS = 15000; // 15s cache TTL for instant UI response
+
+export interface UnitListResponse {
+  data: ProductUnitItem[];
+  meta?: PaginationMeta;
+}
 
 export const productService = {
   async getProducts(params: QueryProductParams = {}, forceRefresh = false): Promise<ProductListResponse> {
@@ -57,6 +66,31 @@ export const productService = {
 
   async getProduct(id: string): Promise<ProductDetailResponse> {
     return apiClient<ProductDetailResponse>(`/products/${id}`);
+  },
+
+  async getUnits(params: QueryProductUnitParams = {}): Promise<UnitListResponse> {
+    const query = new URLSearchParams();
+    if (params.imei?.trim()) query.append('imei', params.imei.trim());
+    if (params.serialNumber?.trim()) query.append('serialNumber', params.serialNumber.trim());
+    if (params.productId) query.append('productId', params.productId);
+    if (params.location) query.append('location', params.location);
+    if (params.status) query.append('status', params.status);
+
+    const queryString = query.toString();
+    const res = await apiClient<ProductUnitItem[] | UnitListResponse>(`/products/units${queryString ? `?${queryString}` : ''}`);
+    
+    if (Array.isArray(res)) {
+      return { data: res };
+    }
+    return res;
+  },
+
+  async getUnit(unitId: string): Promise<ProductUnitItem> {
+    return apiClient<ProductUnitItem>(`/products/units/${unitId}`);
+  },
+
+  async getUnitHistory(unitId: string): Promise<UnitHistoryResponse> {
+    return apiClient<UnitHistoryResponse>(`/products/units/${unitId}/history`);
   },
 
   async createProduct(data: CreateProductRequest): Promise<{ data: ProductItem } | ProductItem> {

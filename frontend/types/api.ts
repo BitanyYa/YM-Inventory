@@ -84,13 +84,62 @@ export interface ProductUnitItem {
   id: string;
   imei?: string | null;
   serialNumber?: string | null;
-  storage?: string | null;
+  storage?: number | string | null;
   color?: string | null;
   purchasePrice?: number | null;
   location: Location;
-  status: string;
+  status: 'AVAILABLE' | 'IN_SHOP' | 'SOLD' | 'RETURNED' | 'DAMAGED' | 'UNACCOUNTED' | string;
   createdAt?: string;
   updatedAt?: string;
+  product?: {
+    id: string;
+    name: string;
+    brand: string;
+    productType?: ProductType;
+    trackingType?: TrackingType;
+    sellingPrice?: number;
+    category?: { id: string; name: string } | null;
+  };
+}
+
+export interface QueryProductUnitParams {
+  page?: number;
+  limit?: number;
+  imei?: string;
+  serialNumber?: string;
+  productId?: string;
+  location?: Location | '';
+  status?: string;
+  search?: string;
+  productType?: ProductType | '';
+  categoryId?: string;
+}
+
+export interface UnitHistoryMovementItem {
+  movementId: string;
+  movementType: MovementType;
+  quantity: number;
+  fromLocation?: Location | null;
+  toLocation?: Location | null;
+  costPrice?: number | null;
+  note?: string | null;
+  createdAt: string;
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+  };
+}
+
+export interface UnitHistoryResponse {
+  unit: ProductUnitItem;
+  summary: {
+    totalMovements: number;
+    firstMovementAt: string | null;
+    lastMovementAt: string | null;
+  };
+  history: UnitHistoryMovementItem[];
 }
 
 export interface ProductItem {

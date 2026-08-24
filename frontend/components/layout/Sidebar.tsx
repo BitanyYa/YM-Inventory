@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/Badge';
-import { DashboardIcon, ProductsIcon, InventoryIcon, MovementsIcon, CloseIcon } from '../ui/Icons';
+import { DashboardIcon, ProductsIcon, InventoryIcon, MovementsIcon, UnitsIcon, CloseIcon } from '../ui/Icons';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -20,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { label: 'Dashboard', href: '/', icon: DashboardIcon },
     { label: 'Products', href: '/products', icon: ProductsIcon },
     { label: 'Inventory', href: '/inventory', icon: InventoryIcon },
+    { label: 'Units / IMEI', href: '/units', icon: UnitsIcon },
     { label: 'Movements', href: '/movements', icon: MovementsIcon },
   ];
 
