@@ -260,6 +260,10 @@ export interface StockMovementProduct {
   productType: ProductType;
   trackingType: TrackingType;
   sellingPrice?: number;
+  category?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface StockMovementUser {
@@ -273,11 +277,19 @@ export interface StockMovementUnitItem {
   id: string;
   imei?: string | null;
   serialNumber?: string | null;
-  storage?: string | null;
+  storage?: string | number | null;
   color?: string | null;
   purchasePrice?: number | null;
   location: Location;
   status: string;
+}
+
+export interface StockBatchItem {
+  id: string;
+  reference?: string | null;
+  note?: string | null;
+  createdById?: string;
+  createdAt?: string;
 }
 
 export interface StockMovementItem {
@@ -294,11 +306,33 @@ export interface StockMovementItem {
   product: StockMovementProduct;
   createdBy?: StockMovementUser;
   units?: StockMovementUnitItem[];
+  stockBatch?: StockBatchItem | null;
 }
 
 export interface StockMovementsResponse {
   data: StockMovementItem[];
   meta: PaginationMeta;
+}
+
+export interface StockMovementDetailResponse {
+  data: StockMovementItem;
+}
+
+export interface QueryStockMovementParams {
+  page?: number;
+  limit?: number;
+  productId?: string;
+  productType?: ProductType | '';
+  trackingType?: TrackingType | '';
+  movementType?: MovementType | '';
+  location?: Location | '';
+  fromLocation?: Location | '';
+  toLocation?: Location | '';
+  createdById?: string;
+  search?: string;
+  date?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 /* ─── Inventory Query & Response Types ─────────────────────────────────────── */

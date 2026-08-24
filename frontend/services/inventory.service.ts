@@ -216,6 +216,38 @@ export const inventoryService = {
   },
 
   /**
+   * GET /stock/movements
+   * Paginated stock movement audit log with support for search, location, type, and date range filters.
+   */
+  async getMovements(params: import('../types/api').QueryStockMovementParams = {}): Promise<import('../types/api').StockMovementsResponse> {
+    const q = new URLSearchParams();
+    if (params.page) q.append('page', params.page.toString());
+    if (params.limit) q.append('limit', params.limit.toString());
+    if (params.search?.trim()) q.append('search', params.search.trim());
+    if (params.productId) q.append('productId', params.productId);
+    if (params.productType) q.append('productType', params.productType);
+    if (params.trackingType) q.append('trackingType', params.trackingType);
+    if (params.movementType) q.append('movementType', params.movementType);
+    if (params.location) q.append('location', params.location);
+    if (params.fromLocation) q.append('fromLocation', params.fromLocation);
+    if (params.toLocation) q.append('toLocation', params.toLocation);
+    if (params.createdById) q.append('createdById', params.createdById);
+    if (params.date) q.append('date', params.date);
+    if (params.startDate) q.append('startDate', params.startDate);
+    if (params.endDate) q.append('endDate', params.endDate);
+    const qs = q.toString();
+    return apiClient<import('../types/api').StockMovementsResponse>(`/stock/movements${qs ? `?${qs}` : ''}`);
+  },
+
+  /**
+   * GET /stock/movements/:id
+   * Complete detail of a single stock movement including creator, category, batch, and serialized units.
+   */
+  async getMovement(id: string): Promise<import('../types/api').StockMovementDetailResponse> {
+    return apiClient<import('../types/api').StockMovementDetailResponse>(`/stock/movements/${id}`);
+  },
+
+  /**
    * POST /stock/reconcile
    * Physical inventory audit reconciliation for QUANTITY or SERIALIZED products (ADMIN only).
    */
