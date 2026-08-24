@@ -27,20 +27,22 @@ export class InventoryService {
         category: true,
         inventory: true,
         productUnits: {
+          where: {
+            OR: [
+              {
+                location: Location.WAREHOUSE,
+                status: UnitStatus.AVAILABLE,
+              },
+              {
+                location: Location.SHOP,
+                status: UnitStatus.IN_SHOP,
+              },
+            ],
+          },
           select: {
             id: true,
-            imei: true,
-            serialNumber: true,
-            storage: true,
-            color: true,
-            purchasePrice: true,
             location: true,
             status: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
           },
         },
       },
@@ -100,6 +102,12 @@ export class InventoryService {
 
   async findInventory(query: QueryInventoryDto) {
     const activeFilter = query.isActive !== undefined ? query.isActive : true;
+    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
+    const limit =
+      query.limit && query.limit >= 1 && query.limit <= 100
+        ? Number(query.limit)
+        : 20;
+    const skip = (page - 1) * limit;
 
     const productWhere: Prisma.ProductWhereInput = {
       isActive: activeFilter,
@@ -125,6 +133,145 @@ export class InventoryService {
       ];
     }
 
+    const targetStatus = query.stockStatus || query.status;
+
+    // Optimized fast-path: DB-level pagination when post-filtering on computed stockStatus is not required
+    if (!query.location && !targetStatus && query.lowStock === undefined) {
+      const [products, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where: productWhere,
+          skip,
+          take: limit,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            inventory: true,
+            productUnits: {
+              where: {
+                OR: [
+                  {
+                    location: Location.WAREHOUSE,
+                    status: UnitStatus.AVAILABLE,
+                  },
+                  {
+                    location: Location.SHOP,
+                    status: UnitStatus.IN_SHOP,
+                  },
+                ],
+              },
+              select: {
+                id: true,
+                location: true,
+                status: true,
+              },
+            },
+          },
+        }),
+        this.prisma.product.count({ where: productWhere }),
+      ]);
+
+      const data = products.map((product) => {
+        const warehouseRecord = product.inventory.find(
+          (i) => i.location === Location.WAREHOUSE,
+        );
+        const shopRecord = product.inventory.find(
+          (i) => i.location === Location.SHOP,
+        );
+
+        const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
+        const shopQuantity = shopRecord ? shopRecord.quantity : 0;
+        const totalQuantity = warehouseQuantity + shopQuantity;
+
+        let stockStatus: InventoryStockStatus;
+        if (totalQuantity === 0) {
+          stockStatus = InventoryStockStatus.OUT_OF_STOCK;
+        } else if (totalQuantity <= product.minimumStock) {
+          stockStatus = InventoryStockStatus.LOW_STOCK;
+        } else {
+          stockStatus = InventoryStockStatus.IN_STOCK;
+        }
+
+        let unitSummary: {
+          totalAvailable: number;
+          warehouseAvailable: number;
+          shopAvailable: number;
+        } | null = null;
+
+        if (product.trackingType === TrackingType.SERIALIZED) {
+          let warehouseAvailable = 0;
+          let shopAvailable = 0;
+
+          for (const u of product.productUnits || []) {
+            if (
+              u.location === Location.WAREHOUSE &&
+              u.status === UnitStatus.AVAILABLE
+            ) {
+              warehouseAvailable++;
+            } else if (
+              u.location === Location.SHOP &&
+              u.status === UnitStatus.IN_SHOP
+            ) {
+              shopAvailable++;
+            }
+          }
+
+          unitSummary = {
+            totalAvailable: warehouseAvailable + shopAvailable,
+            warehouseAvailable,
+            shopAvailable,
+          };
+        }
+
+        return {
+          product: {
+            id: product.id,
+            name: product.name,
+            brand: product.brand,
+            productType: product.productType,
+            trackingType: product.trackingType,
+            sellingPrice: product.sellingPrice
+              ? Number(product.sellingPrice)
+              : 0,
+            minimumStock: product.minimumStock,
+            isActive: product.isActive,
+            category: product.category
+              ? {
+                  id: product.category.id,
+                  name: product.category.name,
+                }
+              : null,
+          },
+          inventory: {
+            warehouseQuantity,
+            shopQuantity,
+            totalQuantity,
+          },
+          unitSummary,
+          stockStatus,
+        };
+      });
+
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+      };
+    }
+
+    // Fallback path when in-memory post-filtering by computed status/location is active
     const products = await this.prisma.product.findMany({
       where: productWhere,
       include: {
@@ -160,8 +307,6 @@ export class InventoryService {
       },
     });
 
-    const targetStatus = query.stockStatus || query.status;
-
     const results: any[] = [];
 
     for (const product of products) {
@@ -185,7 +330,6 @@ export class InventoryService {
         stockStatus = InventoryStockStatus.IN_STOCK;
       }
 
-      // Location filter evaluation
       if (query.location) {
         if (
           query.location === Location.WAREHOUSE &&
@@ -198,12 +342,10 @@ export class InventoryService {
         }
       }
 
-      // Stock status filter evaluation
       if (targetStatus && stockStatus !== targetStatus) {
         continue;
       }
 
-      // Legacy lowStock boolean filter evaluation
       if (query.lowStock !== undefined) {
         const isLowStock = totalQuantity <= product.minimumStock;
         if (query.lowStock === true && !isLowStock) {
@@ -274,15 +416,8 @@ export class InventoryService {
       });
     }
 
-    const page = query.page && query.page >= 1 ? Number(query.page) : 1;
-    const limit =
-      query.limit && query.limit >= 1 && query.limit <= 100
-        ? Number(query.limit)
-        : 20;
-
     const total = results.length;
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
-
     const startIndex = (page - 1) * limit;
     const data = results.slice(startIndex, startIndex + limit);
 

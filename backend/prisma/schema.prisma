@@ -94,6 +94,12 @@ model Product {
   inventory      Inventory[]
   productUnits   ProductUnit[]
   stockMovements StockMovement[]
+
+  @@index([categoryId])
+  @@index([productType])
+  @@index([trackingType])
+  @@index([isActive])
+  @@index([createdAt])
 }
 
 model ProductUnit {
@@ -112,6 +118,9 @@ model ProductUnit {
   recievedAt         DateTime            @default(now())
   stockMovements     StockMovement[]
   stockMovementUnits StockMovementUnit[]
+
+  @@index([productId])
+  @@index([location, status])
 }
 
 model Inventory {
@@ -123,6 +132,8 @@ model Inventory {
   updatedAt DateTime @updatedAt
 
   @@unique([productId, location])
+  @@index([productId])
+  @@index([location])
 }
 
 model StockMovement {
@@ -143,6 +154,11 @@ model StockMovement {
   createdBy     User                @relation(fields: [createdById], references: [id])
   createdAt     DateTime            @default(now())
   movementUnits StockMovementUnit[]
+
+  @@index([productId])
+  @@index([movementType])
+  @@index([createdById])
+  @@index([createdAt])
 }
 
 model StockBatch {
