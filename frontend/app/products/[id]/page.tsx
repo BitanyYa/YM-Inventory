@@ -16,10 +16,11 @@ import { TransferStockModal } from '../../../components/inventory/TransferStockM
 import { SellStockModal } from '../../../components/inventory/SellStockModal';
 import { ReturnStockModal } from '../../../components/inventory/ReturnStockModal';
 import { DamageLossModal } from '../../../components/inventory/DamageLossModal';
+import { ReconcileStockModal } from '../../../components/inventory/ReconcileStockModal';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import { AlertTriangleIcon } from '../../../components/ui/Icons';
 
-type StockModal = 'receive' | 'transfer' | 'sell' | 'return' | 'damage' | null;
+type StockModal = 'receive' | 'transfer' | 'sell' | 'return' | 'damage' | 'reconcile' | null;
 
 function StockBadge({ status }: { status: string }) {
   if (status === 'IN_STOCK') return <Badge variant="success" size="sm">In Stock</Badge>;
@@ -115,6 +116,7 @@ export default function ProductDetailPage() {
               <>
                 <Button variant="secondary" size="sm" onClick={() => setStockModal('receive')}>+ Receive</Button>
                 <Button variant="secondary" size="sm" onClick={() => setStockModal('transfer')}>⇄ Transfer</Button>
+                <Button variant="secondary" size="sm" onClick={() => setStockModal('reconcile')}>Reconcile</Button>
               </>
             )}
             <Button variant="secondary" size="sm" onClick={() => setStockModal('sell')}>$ Sell</Button>
@@ -249,6 +251,8 @@ export default function ProductDetailPage() {
         onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Return')} />
       <DamageLossModal isOpen={stockModal === 'damage'} product={productAsInventory}
         onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Adjustment')} />
+      <ReconcileStockModal isOpen={stockModal === 'reconcile'} product={productAsInventory}
+        onClose={() => setStockModal(null)} onSuccess={(msg) => handleOpSuccess(msg || 'Reconciliation')} />
     </AppShell>
   );
 }

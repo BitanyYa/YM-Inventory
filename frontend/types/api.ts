@@ -5,7 +5,8 @@ export type MovementType =
   | 'SALE'
   | 'RETURN'
   | 'DAMAGE'
-  | 'LOSS';
+  | 'LOSS'
+  | 'ADJUSTMENT';
 export type Location = 'WAREHOUSE' | 'SHOP';
 export type ProductType =
   | 'PHONE'
@@ -408,5 +409,29 @@ export interface AdjustStockRequest {
   unitIds?: string[];
   location?: Location;
   note?: string;
+}
+
+export interface ReconcileStockRequest {
+  productId: string;
+  location: Location;
+  actualCount?: number;
+  physicalCount?: number;
+  verifiedUnitIds?: string[];
+  note?: string;
+}
+
+export interface ReconcileStockResponse {
+  message: string;
+  reconciled: boolean;
+  movementId?: string;
+  productId: string;
+  productName: string;
+  location: Location;
+  previousQuantity?: number;
+  actualCount?: number;
+  physicalCount?: number;
+  difference: number;
+  missingUnitsCount?: number;
+  foundUnitsCount?: number;
 }
 

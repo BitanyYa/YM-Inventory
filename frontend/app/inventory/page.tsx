@@ -23,10 +23,11 @@ import { TransferStockModal } from '../../components/inventory/TransferStockModa
 import { SellStockModal } from '../../components/inventory/SellStockModal';
 import { ReturnStockModal } from '../../components/inventory/ReturnStockModal';
 import { DamageLossModal } from '../../components/inventory/DamageLossModal';
+import { ReconcileStockModal } from '../../components/inventory/ReconcileStockModal';
 
 /* ─── types ─────────────────────────────────────────────────────────────── */
 
-type ModalType = 'receive' | 'transfer' | 'sell' | 'return' | 'damage' | null;
+type ModalType = 'receive' | 'transfer' | 'sell' | 'return' | 'damage' | 'reconcile' | null;
 type LocationTab = 'ALL' | 'WAREHOUSE' | 'SHOP';
 type PageTab = 'inventory' | 'alerts';
 
@@ -67,6 +68,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const updateCoords = useCallback(() => {
     if (buttonRef.current) {
@@ -112,7 +114,12 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node) &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -126,6 +133,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
     { label: 'Sell', type: 'sell' as ModalType, adminOnly: false },
     { label: 'Return', type: 'return' as ModalType, adminOnly: false },
     { label: 'Damage / Loss', type: 'damage' as ModalType, adminOnly: false, danger: true },
+    { label: 'Reconcile Stock', type: 'reconcile' as ModalType, adminOnly: true },
   ].filter((a) => !a.adminOnly || isAdmin);
 
   return (
@@ -140,6 +148,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
       </Button>
       {open && coords && (
         <div
+          ref={menuRef}
           style={{
             position: 'fixed',
             top: coords.top !== undefined ? `${coords.top}px` : undefined,
@@ -157,6 +166,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
           </Link>
           {items.map((a) => (
             <button
+              type="button"
               key={a.type}
               onClick={() => {
                 setOpen(false);
@@ -221,8 +231,9 @@ export default function InventoryPage() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProductItem | null>(null);
 
-  /* ── for the receive modal opened from the header button ── */
+  /* ── for header buttons ── */
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [isReconcileOpen, setIsReconcileOpen] = useState(false);
 
   /* ── debounce search ── */
   useEffect(() => {
@@ -323,9 +334,14 @@ export default function InventoryPage() {
             <p className="text-xs text-[#6E6E73]">Manage stock across warehouse and shop.</p>
           </div>
           {isAdmin && (
-            <Button variant="primary" size="sm" onClick={() => setIsReceiveOpen(true)}>
-              + Receive Stock
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setIsReconcileOpen(true)}>
+                Reconcile Stock
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => setIsReceiveOpen(true)}>
+                + Receive Stock
+              </Button>
+            </div>
           )}
         </div>
 
@@ -746,6 +762,12 @@ export default function InventoryPage() {
         onClose={() => setIsReceiveOpen(false)}
         onSuccess={() => { showSuccess('Stock received.'); fetchInventory(); fetchSummary(); }}
       />
+      <ReconcileStockModal
+        isOpen={isReconcileOpen}
+        product={null}
+        onClose={() => setIsReconcileOpen(false)}
+        onSuccess={(msg) => { showSuccess(msg || 'Inventory reconciled.'); fetchInventory(); fetchSummary(); }}
+      />
 
       {/* row-level "Receive Stock": product pre-selected, goes straight to form */}
       <ReceiveStockModal
@@ -753,6 +775,12 @@ export default function InventoryPage() {
         product={selectedProduct}
         onClose={closeModal}
         onSuccess={() => handleOpSuccess('Stock receipt')}
+      />
+      <ReconcileStockModal
+        isOpen={activeModal === 'reconcile'}
+        product={selectedProduct}
+        onClose={closeModal}
+        onSuccess={(msg) => { showSuccess(msg || 'Inventory reconciled.'); fetchInventory(); fetchSummary(); }}
       />
       <TransferStockModal
         isOpen={activeModal === 'transfer'}

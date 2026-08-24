@@ -13,6 +13,8 @@ import {
   DamageLossStockRequest,
   AdjustStockRequest,
   ProductDetailResponse,
+  ReconcileStockRequest,
+  ReconcileStockResponse,
 } from '../types/api';
 
 /**
@@ -208,6 +210,17 @@ export const inventoryService = {
    */
   async adjustStock(data: AdjustStockRequest): Promise<void> {
     await apiClient<unknown>('/stock/adjust', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * POST /stock/reconcile
+   * Physical inventory audit reconciliation for QUANTITY or SERIALIZED products (ADMIN only).
+   */
+  async reconcileStock(data: ReconcileStockRequest): Promise<ReconcileStockResponse> {
+    return apiClient<ReconcileStockResponse>('/stock/reconcile', {
       method: 'POST',
       body: JSON.stringify(data),
     });
