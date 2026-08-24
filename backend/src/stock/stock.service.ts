@@ -3583,13 +3583,14 @@ export class StockService {
       /* 1. QUANTITY TRACKED RECONCILIATION                                     */
       /* ═════════════════════════════════════════════════════════════════════ */
       if (product.trackingType === TrackingType.QUANTITY) {
+        const count = dto.actualCount ?? dto.physicalCount;
         if (
-          dto.physicalCount === undefined ||
-          dto.physicalCount === null ||
-          dto.physicalCount < 0
+          count === undefined ||
+          count === null ||
+          count < 0
         ) {
           throw new BadRequestException(
-            'physicalCount is required and must be at least 0 for QUANTITY products',
+            'actualCount (or physicalCount) is required and must be at least 0 for QUANTITY products',
           );
         }
 
@@ -3603,7 +3604,7 @@ export class StockService {
         });
 
         const currentQuantity = existingInventory?.quantity || 0;
-        const difference = dto.physicalCount - currentQuantity;
+        const difference = count - currentQuantity;
 
         // Zero discrepancy: no mutation
         if (difference === 0) {
@@ -3613,8 +3614,10 @@ export class StockService {
             productId: product.id,
             productName: product.name,
             location: dto.location,
+            previousQuantity: currentQuantity,
             systemQuantity: currentQuantity,
-            physicalCount: dto.physicalCount,
+            actualCount: count,
+            physicalCount: count,
             difference: 0,
           };
         }
@@ -3624,7 +3627,7 @@ export class StockService {
           updatedInventory = await tx.inventory.update({
             where: { id: existingInventory.id },
             data: {
-              quantity: dto.physicalCount,
+              quantity: count,
             },
           });
         } else {
@@ -3632,7 +3635,7 @@ export class StockService {
             data: {
               productId: product.id,
               location: dto.location,
-              quantity: dto.physicalCount,
+              quantity: count,
             },
           });
         }
@@ -3647,8 +3650,8 @@ export class StockService {
             toLocation: difference > 0 ? dto.location : null,
             createdById: userId,
             note: dto.note
-              ? `${dto.note} (Reconciled from ${currentQuantity} to ${dto.physicalCount}, diff: ${difference > 0 ? '+' : ''}${difference})`
-              : `Physical inventory audit reconciliation: system ${currentQuantity} → counted ${dto.physicalCount} (${difference > 0 ? '+' : ''}${difference})`,
+              ? `${dto.note} (Reconciled from ${currentQuantity} to ${count}, diff: ${difference > 0 ? '+' : ''}${difference})`
+              : `Physical inventory audit reconciliation: system ${currentQuantity} → counted ${count} (${difference > 0 ? '+' : ''}${difference})`,
           },
         });
 
@@ -3660,7 +3663,8 @@ export class StockService {
           productName: product.name,
           location: dto.location,
           previousQuantity: currentQuantity,
-          physicalCount: dto.physicalCount,
+          actualCount: count,
+          physicalCount: count,
           difference,
           inventory: updatedInventory,
           movement,

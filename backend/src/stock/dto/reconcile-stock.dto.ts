@@ -38,6 +38,17 @@ export class ReconcileStockDto {
   @IsInt()
   @Min(0)
   @IsOptional()
+  actualCount?: number;
+
+  @ApiPropertyOptional({
+    example: 15,
+    description:
+      'Alias for actualCount (physical count found during audit)',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @IsOptional()
   physicalCount?: number;
 
   @ApiPropertyOptional({
