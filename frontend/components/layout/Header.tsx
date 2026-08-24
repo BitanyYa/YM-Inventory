@@ -15,32 +15,39 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
   const { user, logout } = useAuth();
 
   const getPageTitle = (path: string) => {
-    if (path === '/') return 'Dashboard';
-    if (path.startsWith('/products/')) return 'Product Detail';
-    if (path.startsWith('/products')) return 'Products';
-    if (path.startsWith('/inventory')) return 'Inventory';
-    if (path.startsWith('/movements')) return 'Movements';
+    if (path === '/') return 'Dashboard Overview';
+    if (path.startsWith('/products/')) return 'Product Lifecycle Detail';
+    if (path.startsWith('/products')) return 'Product Catalog Management';
+    if (path.startsWith('/inventory')) return 'Inventory & Stock Reconciliation';
+    if (path.startsWith('/movements')) return 'Stock Movement Audit Log';
     return 'YM Inventory';
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 w-full items-center justify-between border-b border-[#E8E8ED] bg-white/95 px-4 backdrop-blur-md dark:border-[#2C2C2E] dark:bg-[#1C1C1E]/95">
+    <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-4 backdrop-blur-md dark:border-[#334155] dark:bg-[#1E293B]/95">
       <div className="flex items-center gap-2">
         <button
           onClick={onOpenMobileMenu}
-          className="rounded p-1.5 text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#1D1D1F] lg:hidden dark:hover:bg-[#2C2C2E]"
+          className="rounded-lg p-1.5 text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A] lg:hidden dark:hover:bg-[#334155]"
           aria-label="Open menu"
         >
           <MenuIcon size={18} />
         </button>
-        <h1 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+        <h1 className="text-sm font-bold text-[#0F172A] dark:text-[#F8FAFC]">
           {getPageTitle(pathname)}
         </h1>
       </div>
 
       <div className="flex items-center gap-3">
         {user && (
-          <span className="hidden text-xs text-[#6E6E73] sm:block">{user.name}</span>
+          <div className="hidden text-right sm:block">
+            <span className="block text-xs font-bold text-[#0F172A] leading-none dark:text-[#F8FAFC]">
+              {user.name}
+            </span>
+            <span className="block text-[10px] text-[#64748B] font-semibold">
+              {user.role}
+            </span>
+          </div>
         )}
         <Button
           variant="ghost"
@@ -48,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
           onClick={logout}
           leftIcon={<LogoutIcon size={14} />}
         >
-          <span className="hidden sm:inline text-xs">Logout</span>
+          <span className="hidden sm:inline text-xs font-semibold">Logout</span>
         </Button>
       </div>
     </header>

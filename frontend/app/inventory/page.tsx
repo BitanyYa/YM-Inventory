@@ -428,10 +428,10 @@ export default function InventoryPage() {
                 <button
                   key={loc}
                   onClick={() => { setLocationTab(loc); setPage(1); }}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                     locationTab === loc
-                      ? 'bg-[#0071E3] text-white'
-                      : 'text-[#6E6E73] hover:bg-[#F5F5F7] hover:text-[#1D1D1F] dark:hover:bg-[#2C2C2E] dark:hover:text-[#F5F5F7]'
+                      ? 'bg-[#2563EB] text-white shadow-xs'
+                      : 'text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#2563EB] dark:hover:bg-[#334155] dark:hover:text-[#F8FAFC]'
                   }`}
                 >
                   {loc === 'ALL' ? 'All Locations' : loc.charAt(0) + loc.slice(1).toLowerCase()}
@@ -445,10 +445,10 @@ export default function InventoryPage() {
                 <button
                   key={cat.id}
                   onClick={() => { setCategoryId(cat.id); setPage(1); }}
-                  className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`shrink-0 rounded-xl px-3 py-1 text-xs font-semibold transition-colors ${
                     categoryId === cat.id
-                      ? 'bg-[#1D1D1F] text-white dark:bg-[#F5F5F7] dark:text-[#1D1D1F]'
-                      : 'border border-[#D2D2D7] bg-white text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#1C1C1E] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]'
+                      ? 'bg-[#1E293B] text-white dark:bg-[#F8FAFC] dark:text-[#0F172A]'
+                      : 'border border-[#CBD5E1] bg-white text-[#0F172A] hover:bg-[#EFF6FF] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC] dark:hover:bg-[#334155]'
                   }`}
                 >
                   {cat.name}
@@ -457,15 +457,15 @@ export default function InventoryPage() {
             </div>
 
             {/* filter bar */}
-            <div className="flex flex-col gap-2 rounded-xl border border-[#E8E8ED] bg-white p-2.5 dark:border-[#38383A] dark:bg-[#1C1C1E] sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 rounded-2xl border border-[#E2E8F0] bg-white p-2.5 shadow-xs dark:border-[#334155] dark:bg-[#1E293B] sm:flex-row sm:items-center">
               <div className="relative flex-1">
-                <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#AEAEB2]" />
+                <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by product name or brand…"
-                  className="w-full rounded-lg border border-[#D2D2D7] bg-[#F5F5F7] py-1.5 pl-8 pr-3 text-xs text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]"
+                  className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
                 />
               </div>
               <div className="flex flex-wrap gap-1.5">

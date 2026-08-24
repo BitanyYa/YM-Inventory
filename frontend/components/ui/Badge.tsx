@@ -14,31 +14,31 @@ export const Badge: React.FC<BadgeProps> = ({
   className = '',
 }) => {
   const variants = {
-    /* Apple gray */
+    /* Slate neutral */
     neutral:
-      'bg-[#E8E8ED] text-[#1D1D1F] dark:bg-[#3A3A3C] dark:text-[#F5F5F7]',
-    /* Apple green */
+      'bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0] dark:bg-[#334155] dark:text-[#E2E8F0] dark:border-[#475569]',
+    /* Emerald tertiary green */
     success:
-      'bg-[#E9F9EE] text-[#1A7A3A] dark:bg-[#0A2E1A] dark:text-[#30D158]',
-    /* Apple orange */
+      'bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] dark:bg-[#022C22] dark:text-[#34D399] dark:border-[#065F46]',
+    /* Amber secondary gold */
     warning:
-      'bg-[#FFF4E0] text-[#995E00] dark:bg-[#2E1E00] dark:text-[#FF9F0A]',
-    /* Apple red */
+      'bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] dark:bg-[#451A03] dark:text-[#FBBF24] dark:border-[#78350F]',
+    /* Red danger */
     danger:
-      'bg-[#FFECEB] text-[#CC2B22] dark:bg-[#2E0A09] dark:text-[#FF453A]',
-    /* Apple blue/teal */
+      'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] dark:bg-[#450A0A] dark:text-[#F87171] dark:border-[#7F1D1D]',
+    /* Precision Blue info */
     info:
-      'bg-[#EBF8FE] text-[#005A99] dark:bg-[#00263A] dark:text-[#5AC8FA]',
+      'bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] dark:bg-[#172554] dark:text-[#60A5FA] dark:border-[#1E3A8A]',
   };
 
   const sizes = {
-    sm: 'px-1.5 py-0.5 text-[10px] font-semibold tracking-wide',
-    md: 'px-2 py-0.5 text-xs font-semibold tracking-wide',
+    sm: 'px-2 py-0.5 text-[10px] font-semibold tracking-wide rounded-md',
+    md: 'px-2.5 py-0.5 text-xs font-semibold tracking-wide rounded-lg',
   };
 
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-md ${sizes[size]} ${variants[variant]} ${className}`}
+      className={`inline-flex items-center justify-center ${sizes[size]} ${variants[variant]} ${className}`}
     >
       {children}
     </span>

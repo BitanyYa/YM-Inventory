@@ -19,18 +19,18 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   return (
     <div
-      className={`rounded-xl border border-[#D2D2D7] bg-white shadow-sm dark:border-[#38383A] dark:bg-[#1C1C1E] ${className}`}
+      className={`rounded-2xl border border-[#E2E8F0] bg-white shadow-xs transition-shadow dark:border-[#334155] dark:bg-[#1E293B] ${className}`}
     >
       {(title || action) && (
-        <div className="flex items-center justify-between border-b border-[#E8E8ED] px-5 py-3.5 dark:border-[#2C2C2E]">
+        <div className="flex items-center justify-between border-b border-[#F1F5F9] px-5 py-3.5 dark:border-[#334155]">
           <div>
             {title && (
-              <h3 className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+              <h3 className="text-sm font-bold text-[#0F172A] dark:text-[#F8FAFC]">
                 {title}
               </h3>
             )}
             {subtitle && (
-              <p className="mt-0.5 text-xs text-[#6E6E73] dark:text-[#98989D]">
+              <p className="mt-0.5 text-xs text-[#64748B] dark:text-[#94A3B8]">
                 {subtitle}
               </p>
             )}
@@ -40,7 +40,7 @@ export const Card: React.FC<CardProps> = ({
       )}
       <div className="p-5">{children}</div>
       {footer && (
-        <div className="border-t border-[#E8E8ED] bg-[#F5F5F7] px-5 py-3 dark:border-[#2C2C2E] dark:bg-[#2C2C2E]">
+        <div className="border-t border-[#F1F5F9] bg-[#F8FAFC] px-5 py-3 dark:border-[#334155] dark:bg-[#0F172A] rounded-b-2xl">
           {footer}
         </div>
       )}

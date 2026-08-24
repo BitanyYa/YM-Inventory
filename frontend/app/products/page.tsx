@@ -230,7 +230,7 @@ export default function ProductsPage() {
   };
 
   /* shared input/select class */
-  const inputCls = 'rounded-lg border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]';
+  const inputCls = 'rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 px-3 py-1.5 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]';
 
   return (
     <AppShell>
@@ -239,8 +239,8 @@ export default function ProductsPage() {
         {/* header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Products</h2>
-            <p className="text-xs text-[#6E6E73]">
+            <h2 className="text-base font-bold text-[#0F172A] dark:text-[#F8FAFC]">Product Catalog</h2>
+            <p className="text-xs font-semibold text-[#64748B]">
               {meta.total} product{meta.total !== 1 ? 's' : ''}{hasFilters ? ' (filtered)' : ''}
             </p>
           </div>
@@ -254,13 +254,13 @@ export default function ProductsPage() {
 
         {/* banners */}
         {successBanner && (
-          <div className="flex items-center justify-between rounded-lg border border-[#30D158]/30 bg-[#E9F9EE] px-3 py-2 text-xs font-medium text-[#1A7A3A] dark:border-[#30D158]/20 dark:bg-[#0A2E1A] dark:text-[#30D158]">
+          <div className="flex items-center justify-between rounded-xl border border-[#10B981]/30 bg-[#ECFDF5] px-3 py-2 text-xs font-semibold text-[#065F46] dark:border-[#10B981]/20 dark:bg-[#022C22] dark:text-[#34D399]">
             <span>{successBanner}</span>
             <button onClick={() => setSuccessBanner(null)}>✕</button>
           </div>
         )}
         {error && (
-          <div className="flex items-center justify-between rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-3 py-2 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
+          <div className="flex items-center justify-between rounded-xl border border-[#DC2626]/20 bg-[#FEE2E2] px-3 py-2 text-xs font-semibold text-[#991B1B] dark:border-[#DC2626]/20 dark:bg-[#450A0A] dark:text-[#F87171]">
             <div className="flex items-center gap-2"><AlertTriangleIcon size={14} />{error}</div>
             <Button variant="secondary" size="sm" onClick={fetchProducts}>Retry</Button>
           </div>
@@ -268,19 +268,19 @@ export default function ProductsPage() {
 
         {/* category pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-          {[{ id: '', name: 'All' }, ...categories].map((cat) => (
+          {[{ id: '', name: 'All Categories' }, ...categories].map((cat) => (
             <button
               key={cat.id}
               onClick={() => { setCategoryId(cat.id); setPage(1); }}
-              className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+              className={`shrink-0 rounded-xl px-3 py-1 text-xs font-semibold transition-colors ${
                 categoryId === cat.id
-                  ? 'bg-[#0071E3] text-white'
-                  : 'border border-[#D2D2D7] bg-white text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#1C1C1E] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]'
+                  ? 'bg-[#2563EB] text-white shadow-xs'
+                  : 'border border-[#CBD5E1] bg-white text-[#0F172A] hover:bg-[#EFF6FF] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC] dark:hover:bg-[#334155]'
               }`}
             >
               {cat.name}
               {'productCount' in cat && cat.productCount !== undefined && (
-                <span className={`ml-1.5 text-[10px] ${categoryId === cat.id ? 'opacity-75' : 'text-[#86868B]'}`}>
+                <span className={`ml-1.5 text-[10px] ${categoryId === cat.id ? 'opacity-90' : 'text-[#64748B]'}`}>
                   {cat.productCount}
                 </span>
               )}
@@ -289,23 +289,23 @@ export default function ProductsPage() {
           {isAdmin && (
             <button
               onClick={() => setIsCreateCategoryOpen(true)}
-              className="shrink-0 rounded-lg border border-dashed border-[#D2D2D7] px-3 py-1 text-xs font-medium text-[#86868B] hover:border-[#0071E3] hover:text-[#0071E3] dark:border-[#38383A] dark:hover:border-[#0A84FF] dark:hover:text-[#0A84FF]"
+              className="shrink-0 rounded-xl border border-dashed border-[#CBD5E1] px-3 py-1 text-xs font-semibold text-[#64748B] hover:border-[#2563EB] hover:text-[#2563EB] dark:border-[#475569] dark:hover:border-[#60A5FA] dark:hover:text-[#60A5FA]"
             >
-              + New
+              + Category
             </button>
           )}
         </div>
 
         {/* filter bar */}
-        <div className="flex flex-col gap-2 rounded-xl border border-[#E8E8ED] bg-white p-2.5 dark:border-[#38383A] dark:bg-[#1C1C1E] sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 rounded-2xl border border-[#E2E8F0] bg-white p-2.5 shadow-xs dark:border-[#334155] dark:bg-[#1E293B] sm:flex-row sm:items-center">
           <div className="relative flex-1">
-            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#AEAEB2]" />
+            <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products…"
-              className={`w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-[#D2D2D7] bg-[#F5F5F7] text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]`}
+              placeholder="Search products by name or brand…"
+              className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
             />
           </div>
           <div className="flex flex-wrap gap-1.5">

@@ -36,23 +36,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex w-56 flex-col border-r border-[#D2D2D7] bg-white transition-transform duration-200 dark:border-[#38383A] dark:bg-[#1C1C1E] lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex w-56 flex-col border-r border-[#E2E8F0] bg-white transition-transform duration-200 dark:border-[#334155] dark:bg-[#1E293B] lg:static lg:z-auto lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* brand */}
-        <div className="flex h-12 items-center justify-between border-b border-[#E8E8ED] px-4 dark:border-[#2C2C2E]">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0071E3] text-white font-bold text-xs tracking-tight">
+        <div className="flex h-14 items-center justify-between border-b border-[#F1F5F9] px-4 dark:border-[#334155]">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#2563EB] text-white font-extrabold text-xs shadow-xs">
               YM
             </div>
-            <span className="text-sm font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
-              YM Inventory
-            </span>
+            <div>
+              <span className="block text-sm font-bold text-[#0F172A] leading-none dark:text-[#F8FAFC]">
+                YM Inventory
+              </span>
+              <span className="block text-[10px] font-semibold text-[#64748B] tracking-tight dark:text-[#94A3B8]">
+                Precision Logistics
+              </span>
+            </div>
           </Link>
           <button
             onClick={onClose}
-            className="rounded p-1 text-[#86868B] hover:bg-[#F5F5F7] hover:text-[#1D1D1F] lg:hidden dark:hover:bg-[#2C2C2E]"
+            className="rounded-lg p-1 text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A] lg:hidden dark:hover:bg-[#334155]"
             aria-label="Close sidebar"
           >
             <CloseIcon size={16} />
@@ -60,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* nav */}
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-2.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -69,10 +74,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 key={item.href}
                 href={item.href}
                 onClick={onClose}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
                   isActive
-                    ? 'bg-[#0071E3] text-white'
-                    : 'text-[#1D1D1F] hover:bg-[#F5F5F7] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]'
+                    ? 'bg-[#2563EB] text-white shadow-xs'
+                    : 'text-[#475569] hover:bg-[#EFF6FF] hover:text-[#2563EB] dark:text-[#CBD5E1] dark:hover:bg-[#334155] dark:hover:text-[#60A5FA]'
                 }`}
               >
                 <Icon size={16} />
@@ -84,13 +89,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* user */}
         {user && (
-          <div className="border-t border-[#E8E8ED] p-3 dark:border-[#2C2C2E]">
-            <div className="flex items-center justify-between gap-2">
+          <div className="border-t border-[#F1F5F9] p-3 dark:border-[#334155]">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-2.5 dark:border-[#334155] dark:bg-[#0F172A]">
               <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                <p className="truncate text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">
                   {user.name}
                 </p>
-                <p className="truncate text-[10px] text-[#86868B]">{user.email}</p>
+                <p className="truncate text-[10px] text-[#64748B]">{user.email}</p>
               </div>
               <Badge variant={roleVariantMap[user.role] ?? 'neutral'} size="sm">
                 {user.role === 'PRIMARY_ADMIN' ? 'P.ADMIN' : user.role}

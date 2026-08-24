@@ -120,8 +120,8 @@ export default function MovementsPage() {
         {/* header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Stock Movements</h2>
-            <p className="text-xs text-[#6E6E73]">
+            <h2 className="text-base font-bold text-[#0F172A] dark:text-[#F8FAFC]">Stock Movement Audit Log</h2>
+            <p className="text-xs font-semibold text-[#64748B]">
               {isLoading ? 'Loading…' : `${meta.total} transaction record${meta.total !== 1 ? 's' : ''}${hasFilters ? ' (filtered)' : ''}`}
             </p>
           </div>
@@ -129,22 +129,22 @@ export default function MovementsPage() {
         </div>
 
         {error && (
-          <div className="flex items-center justify-between rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-3 py-2 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
+          <div className="flex items-center justify-between rounded-xl border border-[#DC2626]/20 bg-[#FEE2E2] px-3 py-2 text-xs font-semibold text-[#991B1B] dark:border-[#DC2626]/20 dark:bg-[#450A0A] dark:text-[#F87171]">
             <div className="flex items-center gap-2"><AlertTriangleIcon size={14} />{error}</div>
             <Button variant="secondary" size="sm" onClick={fetchMovements}>Retry</Button>
           </div>
         )}
 
         {/* filter bar */}
-        <div className="flex flex-col gap-2 rounded-xl border border-[#E8E8ED] bg-white p-2.5 dark:border-[#38383A] dark:bg-[#1C1C1E] sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 rounded-2xl border border-[#E2E8F0] bg-white p-2.5 shadow-xs dark:border-[#334155] dark:bg-[#1E293B] sm:flex-row sm:items-center">
           <div className="relative flex-1">
-            <SearchIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#AEAEB2]" />
+            <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search product or brand…"
-              className="w-full rounded-lg border border-[#D2D2D7] bg-[#F5F5F7] py-1.5 pl-8 pr-3 text-xs text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]"
+              placeholder="Search by product name or brand…"
+              className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
             />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">

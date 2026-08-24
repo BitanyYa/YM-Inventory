@@ -1,97 +1,73 @@
 @import "tailwindcss";
 
-/* ── Apple Design System — Color Palette ─────────────────────────────────── */
+/* ── Precision Logistics & Repair — Design System Palette ─────────────────── */
 :root {
-  /* Backgrounds */
-  --apple-bg:           #F5F5F7;   /* systemGroupedBackground */
-  --apple-surface:      #FFFFFF;   /* systemBackground / card surface */
-  --apple-surface-2:    #F5F5F7;   /* secondarySystemBackground */
+  /* Brand Palette */
+  --primary:           #2563EB;   /* Precision Royal Blue */
+  --primary-hover:     #1D4ED8;
+  --primary-active:    #1E40AF;
+  --primary-light:     #EFF6FF;
+  --primary-border:    #DBEAFE;
 
-  /* Text */
-  --apple-text-primary:   #1D1D1F;  /* label */
-  --apple-text-secondary: #6E6E73;  /* secondaryLabel */
-  --apple-text-tertiary:  #86868B;  /* tertiaryLabel */
-  --apple-text-placeholder: #AEAEB2;
+  --secondary:         #F59E0B;   /* Amber Gold */
+  --secondary-hover:   #D97706;
+  --secondary-light:   #FEF3C7;
 
-  /* Borders / Separators */
-  --apple-separator:    #D2D2D7;   /* separator */
-  --apple-separator-2:  #E8E8ED;   /* opaqueSeparator */
+  --tertiary:          #10B981;   /* Vivid Emerald */
+  --tertiary-hover:    #059669;
+  --tertiary-light:    #ECFDF5;
 
-  /* Accent — Apple Blue */
-  --apple-blue:         #0071E3;
-  --apple-blue-hover:   #0077ED;
-  --apple-blue-light:   #E8F1FB;
+  --neutral:           #64748B;   /* Slate Neutral */
+  --neutral-dark:      #1E293B;
+  --neutral-light:     #F8FAFC;
 
-  /* Semantic */
-  --apple-green:        #30D158;
-  --apple-green-light:  #E9F9EE;
-  --apple-orange:       #FF9F0A;
-  --apple-orange-light: #FFF4E0;
-  --apple-red:          #FF3B30;
-  --apple-red-light:    #FFECEB;
-  --apple-yellow:       #FFD60A;
-  --apple-teal:         #5AC8FA;
-  --apple-teal-light:   #EBF8FE;
+  /* Surfaces & Canvas */
+  --bg-canvas:         #F1F5F9;   /* Slate 100 canvas */
+  --bg-card:           #FFFFFF;
+  --bg-tint:           #EFF6FF;
 
-  /* Sidebar */
-  --apple-sidebar-bg:   #FFFFFF;
-  --apple-sidebar-border: #D2D2D7;
-  --apple-nav-active-bg: #0071E3;
-  --apple-nav-active-text: #FFFFFF;
-  --apple-nav-hover-bg: #F5F5F7;
+  /* Text & Labels */
+  --text-headline:     #0F172A;   /* Slate 900 */
+  --text-body:         #334155;   /* Slate 700 */
+  --text-muted:        #64748B;   /* Slate 500 */
+  --text-placeholder:  #94A3B8;   /* Slate 400 */
 
-  /* Typography */
-  --background: var(--apple-bg);
-  --foreground: var(--apple-text-primary);
+  /* Borders */
+  --border-card:       #E2E8F0;
+  --border-input:      #CBD5E1;
+
+  /* Danger / Red */
+  --danger:            #DC2626;
+  --danger-light:      #FEE2E2;
+
+  --background: var(--bg-canvas);
+  --foreground: var(--text-headline);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-/* ── Dark mode — Apple dark palette ─────────────────────────────────────── */
+/* ── Dark Mode Theme Tokens ─────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root {
-    --apple-bg:           #000000;
-    --apple-surface:      #1C1C1E;
-    --apple-surface-2:    #2C2C2E;
+    --bg-canvas:         #0F172A;   /* Slate 900 */
+    --bg-card:           #1E293B;   /* Slate 800 */
 
-    --apple-text-primary:   #F5F5F7;
-    --apple-text-secondary: #98989D;
-    --apple-text-tertiary:  #636366;
-    --apple-text-placeholder: #48484A;
+    --text-headline:     #F8FAFC;   /* Slate 50 */
+    --text-body:         #CBD5E1;   /* Slate 300 */
+    --text-muted:        #94A3B8;   /* Slate 400 */
+    --text-placeholder:  #64748B;
 
-    --apple-separator:    #38383A;
-    --apple-separator-2:  #2C2C2E;
+    --border-card:       #334155;
+    --border-input:      #475569;
 
-    --apple-blue:         #0A84FF;
-    --apple-blue-hover:   #409CFF;
-    --apple-blue-light:   #0A2547;
+    --primary-light:     #172554;
+    --secondary-light:   #451A03;
+    --tertiary-light:    #022C22;
 
-    --apple-green:        #30D158;
-    --apple-green-light:  #0A2E1A;
-    --apple-orange:       #FF9F0A;
-    --apple-orange-light: #2E1E00;
-    --apple-red:          #FF453A;
-    --apple-red-light:    #2E0A09;
-    --apple-teal:         #5AC8FA;
-    --apple-teal-light:   #00263A;
-
-    --apple-sidebar-bg:   #1C1C1E;
-    --apple-sidebar-border: #38383A;
-    --apple-nav-active-bg: #0A84FF;
-    --apple-nav-active-text: #FFFFFF;
-    --apple-nav-hover-bg: #2C2C2E;
-
-    --background: var(--apple-bg);
-    --foreground: var(--apple-text-primary);
+    --background: var(--bg-canvas);
+    --foreground: var(--text-headline);
   }
 }
 
-/* ── Base ────────────────────────────────────────────────────────────────── */
+/* ── Global Styles ───────────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -102,22 +78,21 @@ html {
 }
 
 body {
-  background-color: var(--apple-bg);
-  color: var(--apple-text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
-               'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-headline);
+  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
   line-height: 1.5;
 }
 
-/* ── Apple scrollbar ─────────────────────────────────────────────────────── */
+/* ── Custom Scrollbars ───────────────────────────────────────────────────── */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--apple-separator);
-  border-radius: 3px;
+  background: var(--border-input);
+  border-radius: 9999px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--apple-text-tertiary); }
+::-webkit-scrollbar-thumb:hover { background: var(--neutral); }

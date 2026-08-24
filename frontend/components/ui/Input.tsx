@@ -17,7 +17,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7]"
+            className="text-xs font-semibold text-[#0F172A] dark:text-[#F8FAFC]"
           >
             {label}
           </label>
@@ -25,17 +25,17 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <input
           id={inputId}
           ref={ref}
-          className={`w-full rounded-lg border bg-white px-3 py-1.5 text-sm text-[#1D1D1F] placeholder:text-[#AEAEB2] transition-colors focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:bg-[#2C2C2E] dark:text-[#F5F5F7] dark:placeholder:text-[#48484A] ${
+          className={`w-full rounded-xl border bg-[#EFF6FF]/50 px-3 py-1.5 text-xs text-[#0F172A] placeholder:text-[#94A3B8] transition-colors focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:bg-[#1E293B] dark:text-[#F8FAFC] dark:placeholder:text-[#64748B] ${
             error
-              ? 'border-[#FF3B30] focus:ring-[#FF3B30]/40 focus:border-[#FF3B30]'
-              : 'border-[#D2D2D7] dark:border-[#38383A]'
+              ? 'border-[#DC2626] focus:ring-[#DC2626]/40 focus:border-[#DC2626]'
+              : 'border-[#CBD5E1] dark:border-[#475569]'
           } ${className}`}
           {...props}
         />
         {error ? (
-          <span className="text-xs text-[#FF3B30] dark:text-[#FF453A]">{error}</span>
+          <span className="text-xs text-[#DC2626] dark:text-[#F87171]">{error}</span>
         ) : helperText ? (
-          <span className="text-xs text-[#86868B]">{helperText}</span>
+          <span className="text-xs text-[#64748B]">{helperText}</span>
         ) : null}
       </div>
     );
