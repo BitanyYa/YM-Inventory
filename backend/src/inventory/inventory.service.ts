@@ -26,25 +26,6 @@ export class InventoryService {
       include: {
         category: true,
         inventory: true,
-        productUnits: {
-          where: {
-            OR: [
-              {
-                location: Location.WAREHOUSE,
-                status: UnitStatus.AVAILABLE,
-              },
-              {
-                location: Location.SHOP,
-                status: UnitStatus.IN_SHOP,
-              },
-            ],
-          },
-          select: {
-            id: true,
-            location: true,
-            status: true,
-          },
-        },
       },
       orderBy: {
         name: 'asc',
@@ -75,15 +56,7 @@ export class InventoryService {
         stockStatus = InventoryStockStatus.IN_STOCK;
       }
 
-      // Filter active sellable units for serialized products
-      const activeUnits = (product.productUnits || []).filter(
-        (u) =>
-          (u.location === Location.WAREHOUSE &&
-            u.status === UnitStatus.AVAILABLE) ||
-          (u.location === Location.SHOP && u.status === UnitStatus.IN_SHOP),
-      );
-
-      const { inventory, productUnits, ...productData } = product;
+      const { inventory, ...productData } = product;
 
       return {
         product: productData,
@@ -94,7 +67,7 @@ export class InventoryService {
         isLowStock,
         isOutOfStock,
         stockStatus,
-        rawUnits: activeUnits,
+        rawUnits: [],
         trackingType: product.trackingType,
       };
     });
@@ -1162,25 +1135,6 @@ export class InventoryService {
           },
         },
         inventory: true,
-        productUnits: {
-          where: {
-            OR: [
-              {
-                location: Location.WAREHOUSE,
-                status: UnitStatus.AVAILABLE,
-              },
-              {
-                location: Location.SHOP,
-                status: UnitStatus.IN_SHOP,
-              },
-            ],
-          },
-          select: {
-            id: true,
-            location: true,
-            status: true,
-          },
-        },
       },
       orderBy: {
         name: 'asc',
@@ -1246,29 +1200,10 @@ export class InventoryService {
       } | null = null;
 
       if (product.trackingType === TrackingType.SERIALIZED) {
-        let warehouseAvailable = 0;
-        let shopAvailable = 0;
-
-        for (const u of product.productUnits || []) {
-          if (
-            u.location === Location.WAREHOUSE &&
-            u.status === UnitStatus.AVAILABLE &&
-            (query.location === undefined || query.location === Location.WAREHOUSE)
-          ) {
-            warehouseAvailable++;
-          } else if (
-            u.location === Location.SHOP &&
-            u.status === UnitStatus.IN_SHOP &&
-            (query.location === undefined || query.location === Location.SHOP)
-          ) {
-            shopAvailable++;
-          }
-        }
-
         unitSummary = {
-          totalAvailable: warehouseAvailable + shopAvailable,
-          warehouseAvailable,
-          shopAvailable,
+          totalAvailable: totalQuantity,
+          warehouseAvailable: warehouseQuantity,
+          shopAvailable: shopQuantity,
         };
       }
 

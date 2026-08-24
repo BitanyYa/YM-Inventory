@@ -151,7 +151,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                 onChange={(e) => setCategoryId(e.target.value)}
                 disabled={isCategoriesLoading} required>
                 {isCategoriesLoading ? <option value="">Loading…</option>
-                  : categories.length === 0 ? <option value="">No categories — create one first</option>
+                  : categories.length === 0 ? <option value="">No categories create one first</option>
                   : (<>
                     <option value="" disabled>Select category</option>
                     {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
@@ -218,7 +218,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                   }`}>
                   <span className="text-sm font-semibold">{t === 'QUANTITY' ? 'Quantity' : 'Serialized'}</span>
                   <span className={`mt-0.5 text-[11px] leading-snug ${trackingType === t ? 'opacity-80' : 'text-[#86868B]'}`}>
-                    {t === 'QUANTITY' ? 'Bulk count — screens, parts, cables' : 'Per-unit IMEI — phones, tablets, laptops'}
+                    {t === 'QUANTITY' ? 'Bulk count screens, parts, cables' : 'Per-unit IMEI phones, tablets, laptops'}
                   </span>
                 </button>
               ))}
@@ -233,7 +233,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
               onChange={(e) => setIsActive(e.target.checked)}
               className="h-3.5 w-3.5 rounded border-[#D2D2D7] accent-[#0071E3]" />
             <label htmlFor="isActiveToggle" className="cursor-pointer text-xs text-[#1D1D1F] dark:text-[#F5F5F7]">
-              Active — uncheck to deactivate this product
+              Active, uncheck to deactivate product
             </label>
           </div>
         )}

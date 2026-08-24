@@ -68,13 +68,19 @@ function flattenItem(raw: RawInventoryItem): InventoryProductItem {
   };
 }
 
+const inventoryCache = new Map<string, { data: InventoryListResponse; timestamp: number }>();
+const inventoryPendingRequests = new Map<string, Promise<InventoryListResponse>>();
+const INVENTORY_CACHE_TTL_MS = 15000;
+
+let cachedSummary: { data: InventorySummaryResponse; timestamp: number } | null = null;
+let pendingSummaryPromise: Promise<InventorySummaryResponse> | null = null;
+
 export const inventoryService = {
   /**
    * GET /inventory
-   * Backend returns { data: [{ product, inventory, stockStatus, unitSummary }] }.
    * We flatten each item into the InventoryProductItem shape expected by the UI.
    */
-  async getInventory(params: QueryInventoryParams = {}): Promise<InventoryListResponse> {
+  async getInventory(params: QueryInventoryParams = {}, forceRefresh = false): Promise<InventoryListResponse> {
     const q = new URLSearchParams();
     if (params.page) q.append('page', params.page.toString());
     if (params.limit) q.append('limit', params.limit.toString());
@@ -88,11 +94,35 @@ export const inventoryService = {
       q.append('isActive', params.isActive.toString());
     }
     const qs = q.toString();
-    const raw = await apiClient<RawInventoryListResponse>(`/inventory${qs ? `?${qs}` : ''}`);
-    return {
-      data: (raw.data ?? []).map(flattenItem),
-      meta: raw.meta,
-    };
+    const endpoint = `/inventory${qs ? `?${qs}` : ''}`;
+
+    if (!forceRefresh) {
+      const cached = inventoryCache.get(endpoint);
+      if (cached && Date.now() - cached.timestamp < INVENTORY_CACHE_TTL_MS) {
+        return cached.data;
+      }
+      if (inventoryPendingRequests.has(endpoint)) {
+        return inventoryPendingRequests.get(endpoint)!;
+      }
+    }
+
+    const promise = apiClient<RawInventoryListResponse>(endpoint)
+      .then((raw) => {
+        const result: InventoryListResponse = {
+          data: (raw.data ?? []).map(flattenItem),
+          meta: raw.meta,
+        };
+        inventoryCache.set(endpoint, { data: result, timestamp: Date.now() });
+        inventoryPendingRequests.delete(endpoint);
+        return result;
+      })
+      .catch((err) => {
+        inventoryPendingRequests.delete(endpoint);
+        throw err;
+      });
+
+    inventoryPendingRequests.set(endpoint, promise);
+    return promise;
   },
 
   /**
@@ -124,8 +154,26 @@ export const inventoryService = {
    * GET /inventory/summary
    * Aggregate counts: total products, warehouse units, shop units, alerts.
    */
-  async getInventorySummary(): Promise<InventorySummaryResponse> {
-    return apiClient<InventorySummaryResponse>('/inventory/summary');
+  async getInventorySummary(forceRefresh = false): Promise<InventorySummaryResponse> {
+    if (!forceRefresh) {
+      if (cachedSummary && Date.now() - cachedSummary.timestamp < INVENTORY_CACHE_TTL_MS) {
+        return cachedSummary.data;
+      }
+      if (pendingSummaryPromise) {
+        return pendingSummaryPromise;
+      }
+    }
+    pendingSummaryPromise = apiClient<InventorySummaryResponse>('/inventory/summary')
+      .then((res) => {
+        cachedSummary = { data: res, timestamp: Date.now() };
+        pendingSummaryPromise = null;
+        return res;
+      })
+      .catch((err) => {
+        pendingSummaryPromise = null;
+        throw err;
+      });
+    return pendingSummaryPromise;
   },
 
   /**

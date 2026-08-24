@@ -2,15 +2,18 @@ import { apiClient } from '../lib/api-client';
 import {
   ProductListResponse,
   ProductDetailResponse,
-  ProductDetail,
   ProductItem,
   QueryProductParams,
   CreateProductRequest,
   UpdateProductRequest,
 } from '../types/api';
 
+const productCache = new Map<string, { data: ProductListResponse; timestamp: number }>();
+const pendingRequests = new Map<string, Promise<ProductListResponse>>();
+const CACHE_TTL_MS = 15000; // 15s cache TTL for instant UI response
+
 export const productService = {
-  async getProducts(params: QueryProductParams = {}): Promise<ProductListResponse> {
+  async getProducts(params: QueryProductParams = {}, forceRefresh = false): Promise<ProductListResponse> {
     const query = new URLSearchParams();
 
     if (params.page) query.append('page', params.page.toString());
@@ -27,7 +30,29 @@ export const productService = {
     const queryString = query.toString();
     const endpoint = `/products${queryString ? `?${queryString}` : ''}`;
 
-    return apiClient<ProductListResponse>(endpoint);
+    if (!forceRefresh) {
+      const cached = productCache.get(endpoint);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        return cached.data;
+      }
+      if (pendingRequests.has(endpoint)) {
+        return pendingRequests.get(endpoint)!;
+      }
+    }
+
+    const promise = apiClient<ProductListResponse>(endpoint)
+      .then((data) => {
+        productCache.set(endpoint, { data, timestamp: Date.now() });
+        pendingRequests.delete(endpoint);
+        return data;
+      })
+      .catch((err) => {
+        pendingRequests.delete(endpoint);
+        throw err;
+      });
+
+    pendingRequests.set(endpoint, promise);
+    return promise;
   },
 
   async getProduct(id: string): Promise<ProductDetailResponse> {
@@ -35,29 +60,40 @@ export const productService = {
   },
 
   async createProduct(data: CreateProductRequest): Promise<{ data: ProductItem } | ProductItem> {
-    return apiClient<{ data: ProductItem } | ProductItem>('/products', {
+    const res = await apiClient<{ data: ProductItem } | ProductItem>('/products', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    productCache.clear();
+    return res;
   },
 
   async updateProduct(
     id: string,
     data: UpdateProductRequest,
   ): Promise<{ data: ProductItem } | ProductItem> {
-    return apiClient<{ data: ProductItem } | ProductItem>(`/products/${id}`, {
+    const res = await apiClient<{ data: ProductItem } | ProductItem>(`/products/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    productCache.clear();
+    return res;
   },
 
   async updateProductStatus(
     id: string,
     isActive: boolean,
   ): Promise<{ data: ProductItem } | ProductItem> {
-    return apiClient<{ data: ProductItem } | ProductItem>(`/products/${id}/status`, {
+    const res = await apiClient<{ data: ProductItem } | ProductItem>(`/products/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ isActive }),
     });
+    productCache.clear();
+    return res;
+  },
+
+  clearCache(): void {
+    productCache.clear();
+    pendingRequests.clear();
   },
 };

@@ -103,7 +103,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-[#86868B]">
-          Internal access only — contact your administrator if locked out.
+          Internal access only contact your administrator if locked out.
         </p>
       </div>
     </div>

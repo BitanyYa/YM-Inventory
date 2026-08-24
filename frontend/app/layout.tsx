@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'YM Inventory - Precision Logistics & Repair',
+  title: 'YM Inventory Precision Logistics & Repair',
   description: 'Precision inventory, repair parts tracking, and stock management system',
 };
 
