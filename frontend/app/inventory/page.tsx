@@ -129,14 +129,25 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
+  if (!isAdmin) {
+    return (
+      <Link
+        href={`/products/${product.id}`}
+        className="inline-flex items-center justify-center rounded-xl border border-[#D2D2D7] bg-white px-2.5 py-1 text-xs font-semibold text-[#1D1D1F] transition-colors hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]"
+      >
+        View
+      </Link>
+    );
+  }
+
   const items = [
-    { label: 'Receive Stock', type: 'receive' as ModalType, adminOnly: true },
-    { label: 'Transfer Stock', type: 'transfer' as ModalType, adminOnly: true },
-    { label: 'Sell', type: 'sell' as ModalType, adminOnly: false },
-    { label: 'Return', type: 'return' as ModalType, adminOnly: false },
-    { label: 'Damage / Loss', type: 'damage' as ModalType, adminOnly: false, danger: true },
-    { label: 'Reconcile Stock', type: 'reconcile' as ModalType, adminOnly: true },
-  ].filter((a) => !a.adminOnly || isAdmin);
+    { label: 'Receive Stock', type: 'receive' as ModalType, danger: false },
+    { label: 'Transfer Stock', type: 'transfer' as ModalType, danger: false },
+    { label: 'Sell', type: 'sell' as ModalType, danger: false },
+    { label: 'Return', type: 'return' as ModalType, danger: false },
+    { label: 'Damage / Loss', type: 'damage' as ModalType, danger: true },
+    { label: 'Reconcile Stock', type: 'reconcile' as ModalType, danger: false },
+  ];
 
   return (
     <>
@@ -193,7 +204,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
 
 export default function InventoryPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'PRIMARY_ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
 
   /* ── page-level tabs ── */
   const [pageTab, setPageTab] = useState<PageTab>('inventory');

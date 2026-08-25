@@ -35,7 +35,7 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new product (Admin only)' })
   @ApiResponse({ status: 201, description: 'Product created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed' })
@@ -46,7 +46,7 @@ export class ProductsController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated products with optional filters (page, limit, search, productType, trackingType, categoryId, isActive, stockStatus)',
@@ -65,7 +65,7 @@ export class ProductsController {
   }
 
   @Get('units')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Search ProductUnits with optional filters (imei, serialNumber, productId, location, status)',
@@ -79,7 +79,7 @@ export class ProductsController {
   }
 
   @Get('units/:unitId/history')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({ summary: 'Get complete stock movement lifecycle history of a ProductUnit by ID' })
   @ApiParam({ name: 'unitId', description: 'ProductUnit UUID' })
   @ApiResponse({
@@ -92,7 +92,7 @@ export class ProductsController {
   }
 
   @Get('units/:unitId')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({ summary: 'Get ProductUnit details by unit ID' })
   @ApiParam({ name: 'unitId', description: 'ProductUnit UUID' })
   @ApiResponse({
@@ -105,7 +105,7 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get complete product overview by ID including category, inventory breakdown, dynamic stockStatus, unitSummary, serialized units, and stock movementSummary counts',
@@ -123,7 +123,7 @@ export class ProductsController {
   }
 
   @Get(':id/units')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary: 'Get all ProductUnits for a SERIALIZED product ordered by creation date',
   })
@@ -142,7 +142,7 @@ export class ProductsController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update product active status (Admin only)' })
   @ApiParam({ name: 'id', description: 'Product UUID' })
   @ApiResponse({ status: 200, description: 'Product status updated successfully' })
@@ -156,7 +156,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update product by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'Product UUID' })
   @ApiResponse({ status: 200, description: 'Product updated successfully' })
@@ -170,7 +170,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Soft delete product by ID (sets isActive=false, Admin only)' })
   @ApiParam({ name: 'id', description: 'Product UUID' })
   @ApiResponse({ status: 200, description: 'Product soft deleted successfully' })

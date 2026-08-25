@@ -17,7 +17,7 @@ import { QueryProfitReportDto } from './dto/query-profit-report.dto';
 @ApiTags('reports')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+@Roles(UserRole.ADMIN)
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}

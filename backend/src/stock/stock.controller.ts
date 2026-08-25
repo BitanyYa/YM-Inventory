@@ -6,7 +6,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { UserRole, MovementType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -39,7 +39,7 @@ export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   @Get('summary')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get complete dashboard stock & inventory summary (inventory breakdown, serialized units, product statistics, movement totals, sales & returns metrics, and stock alerts)',
@@ -57,7 +57,7 @@ export class StockController {
   }
 
   @Get('movements/summary')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get aggregated stock movement dashboard summary statistics (total movements, total units, counts & quantities by movement type, location breakdown, 5 recent movements, top 5 products)',
@@ -75,7 +75,7 @@ export class StockController {
   }
 
   @Get('movements')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated unified stock movement history with optional filters (page, limit, movementType, productId, productType, trackingType, location, fromLocation, toLocation, createdById, search, date, startDate, endDate)',
@@ -93,7 +93,7 @@ export class StockController {
   }
 
   @Get('transfers')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated stock transfer history with optional filters (page, limit, productId, productType, trackingType, createdById, search, fromLocation, toLocation, date, startDate, endDate)',
@@ -111,7 +111,7 @@ export class StockController {
   }
 
   @Get('receipts')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated stock-in / receiving history with optional filters (page, limit, productId, location, date, startDate, endDate)',
@@ -129,7 +129,7 @@ export class StockController {
   }
 
   @Get('sales')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated sales transaction history with optional filters (page, limit, productId, productType, trackingType, location, createdById, search, date, startDate, endDate)',
@@ -147,7 +147,7 @@ export class StockController {
   }
 
   @Get('returns')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated stock return history with optional filters (page, limit, productId, location, productType, trackingType, search, date, startDate, endDate)',
@@ -165,7 +165,7 @@ export class StockController {
   }
 
   @Get('stock-in')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated stock-in history with optional filters (page, limit, productId, productType, trackingType, createdById, search, location, date, startDate, endDate)',
@@ -183,7 +183,7 @@ export class StockController {
   }
 
   @Get('damages')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated stock damage/loss history with optional filters (page, limit, productId, productType, trackingType, location, createdById, search, date, startDate, endDate)',
@@ -201,7 +201,7 @@ export class StockController {
   }
 
   @Get('adjustments')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
     summary:
       'Get paginated stock adjustment history with optional filters (page, limit, productId, productType, trackingType, location, createdById, search, date, startDate, endDate)',
@@ -210,24 +210,32 @@ export class StockController {
     status: 200,
     description: 'Paginated list of stock adjustment movements ordered newest first with metadata',
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Validation error (e.g. page < 1, limit < 1, limit > 100, or startDate > endDate)',
+  @Roles(UserRole.ADMIN, UserRole.USER)
+  @ApiOperation({
+    summary:
+      'Get paginated adjustment movement history (reconciliation audit log) with optional filters',
   })
-  async getAdjustments(@Query() query: QueryStockAdjustmentDto) {
-    return this.stockService.findAdjustments(query);
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of adjustment stock movements',
+  })
+  async getAdjustments(@Query() query: QueryStockMovementDto) {
+    return this.stockService.findMovements({
+      ...query,
+      movementType: MovementType.ADJUSTMENT,
+    });
   }
 
   @Get('movements/:id')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN, UserRole.USER)
   @ApiOperation({
-    summary: 'Get detailed stock movement information by ID',
+    summary:
+      'Get detailed stock movement record by ID (includes product, category, batch, creator, and associated serialized units)',
   })
   @ApiParam({ name: 'id', description: 'Stock Movement UUID' })
   @ApiResponse({
     status: 200,
-    description:
-      'Stock movement details with product, category, creator, and associated units',
+    description: 'Stock movement details with product, category, creator, and associated units',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing JWT token' })
   @ApiResponse({ status: 403, description: 'Forbidden - insufficient user role permissions' })
@@ -237,7 +245,7 @@ export class StockController {
   }
 
   @Post('receive')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Receive stock (stock in) for QUANTITY or SERIALIZED products into Warehouse',
   })
@@ -256,7 +264,7 @@ export class StockController {
   }
 
   @Post('transfer')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Transfer stock from Warehouse to Shop for QUANTITY or SERIALIZED products',
   })
@@ -277,7 +285,7 @@ export class StockController {
   }
 
   @Post('sell')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Sell stock from Shop for QUANTITY or SERIALIZED products',
   })
@@ -298,7 +306,7 @@ export class StockController {
   }
 
   @Post('return')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Return sold stock to Warehouse or Shop for QUANTITY or SERIALIZED products',
   })
@@ -321,7 +329,7 @@ export class StockController {
   }
 
   @Post('damage')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Record damaged stock at WAREHOUSE or SHOP (QUANTITY or SERIALIZED products)',
   })
@@ -344,7 +352,7 @@ export class StockController {
   }
 
   @Post('loss')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Record lost stock at WAREHOUSE or SHOP (QUANTITY or SERIALIZED products)',
   })
@@ -367,7 +375,7 @@ export class StockController {
   }
 
   @Post('adjust')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Adjust stock for DAMAGE or LOSS (QUANTITY or SERIALIZED products)',
   })
@@ -390,7 +398,7 @@ export class StockController {
   }
 
   @Post('adjust-loss')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN, UserRole.USER)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Adjust stock for DAMAGE or LOSS (supports type or movementType, location, quantity or unitIds)',
   })
@@ -413,7 +421,7 @@ export class StockController {
   }
 
   @Post('reconcile')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary:
       'Perform physical inventory audit reconciliation for QUANTITY or SERIALIZED products (ADMIN only)',

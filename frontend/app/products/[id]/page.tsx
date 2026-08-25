@@ -42,7 +42,7 @@ export default function ProductDetailPage() {
   const params = useParams();
   const productId = params.id as string;
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'PRIMARY_ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);

@@ -31,7 +31,7 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new category (Admin only)' })
   @ApiResponse({ status: 201, description: 'Category created successfully' })
   @ApiResponse({ status: 400, description: 'Validation failed or duplicate category name' })
@@ -57,7 +57,7 @@ export class CategoriesController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update a category by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'Category UUID' })
   @ApiResponse({ status: 200, description: 'Category updated successfully' })
@@ -72,7 +72,7 @@ export class CategoriesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.PRIMARY_ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Delete a category by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'Category UUID' })
   @ApiResponse({ status: 200, description: 'Category deleted successfully' })

@@ -24,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { label: 'Movements', href: '/movements', icon: MovementsIcon },
   ];
 
-  const roleVariantMap = { PRIMARY_ADMIN: 'danger', ADMIN: 'warning', USER: 'info' } as const;
+  const roleVariantMap = { ADMIN: 'warning', USER: 'info' } as const;
 
   return (
     <>
@@ -99,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <p className="truncate text-[10px] text-[#64748B]">{user.email}</p>
               </div>
               <Badge variant={roleVariantMap[user.role] ?? 'neutral'} size="sm">
-                {user.role === 'PRIMARY_ADMIN' ? 'P.ADMIN' : user.role}
+                {user.role}
               </Badge>
             </div>
           </div>

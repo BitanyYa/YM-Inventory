@@ -151,7 +151,7 @@ function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: Product
 
 export default function ProductsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'PRIMARY_ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
 
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);

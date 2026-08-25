@@ -224,7 +224,7 @@ describe('Physical Inventory Reconciliation Backend Tests', () => {
 
     // Test 6: USER attempting reconciliation -> 403 Forbidden
     it('6. USER role attempting reconciliation should throw ForbiddenException (403)', () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN, UserRole.PRIMARY_ADMIN]);
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN]);
       const mockCtx = createMockContext(UserRole.USER);
 
       expect(() => rolesGuard.canActivate(mockCtx)).toThrow(ForbiddenException);
@@ -232,16 +232,8 @@ describe('Physical Inventory Reconciliation Backend Tests', () => {
 
     // Test 7: ADMIN reconciliation succeeds
     it('7. ADMIN role reconciliation should pass authorization guard', () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN, UserRole.PRIMARY_ADMIN]);
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN]);
       const mockCtx = createMockContext(UserRole.ADMIN);
-
-      expect(rolesGuard.canActivate(mockCtx)).toBe(true);
-    });
-
-    // Test 8: PRIMARY_ADMIN reconciliation succeeds
-    it('8. PRIMARY_ADMIN role reconciliation should pass authorization guard', () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN, UserRole.PRIMARY_ADMIN]);
-      const mockCtx = createMockContext(UserRole.PRIMARY_ADMIN);
 
       expect(rolesGuard.canActivate(mockCtx)).toBe(true);
     });

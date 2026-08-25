@@ -1,4 +1,4 @@
-export type UserRole = 'PRIMARY_ADMIN' | 'ADMIN' | 'USER';
+export type UserRole = 'ADMIN' | 'USER';
 export type MovementType =
   | 'STOCK_IN'
   | 'TRANSFER'
