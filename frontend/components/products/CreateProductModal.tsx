@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { CreateProductRequest } from '../../types/api';
 import { productService } from '../../services/product.service';
-import { apiClient } from '../../lib/api-client';
+import { inventoryService } from '../../services/inventory.service';
 import { ProductForm } from './ProductForm';
 import { Button } from '../ui/Button';
 import { CloseIcon } from '../ui/Icons';
@@ -28,11 +28,15 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({ isOpen, 
       const created = (res as { data?: { id?: string } })?.data ?? (res as { id?: string });
       if (initialStock && initialStock > 0 && created?.id) {
         try {
-          await apiClient('/stock/receive', {
-            method: 'POST',
-            body: JSON.stringify({ productId: created.id, quantity: initialStock, note: 'Initial stock on product creation' }),
+          await inventoryService.receiveStock({
+            productId: created.id,
+            quantity: initialStock,
+            purchasePrice: productPayload.sellingPrice || 1,
+            note: 'Initial stock on product creation',
           });
-        } catch { /* non-critical */ }
+        } catch (receiveErr) {
+          console.error('Failed to set initial warehouse stock:', receiveErr);
+        }
       }
       onSuccess(); onClose();
     } catch (err: unknown) {
