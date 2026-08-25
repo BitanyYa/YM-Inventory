@@ -6,14 +6,36 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable Configurable CORS
+  // Enable Smart Configurable CORS
   const corsOriginEnv = process.env.CORS_ORIGIN;
-  const allowedOrigins = corsOriginEnv
-    ? corsOriginEnv.split(',').map((o) => o.trim()).filter(Boolean)
-    : true;
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (requestOrigin, callback) => {
+      // Allow requests with no origin (like Postman, curl, server-to-server)
+      if (!requestOrigin) return callback(null, true);
+
+      if (!corsOriginEnv || corsOriginEnv.trim() === '*' || corsOriginEnv.trim() === '') {
+        return callback(null, true);
+      }
+
+      const allowedList = corsOriginEnv
+        .split(',')
+        .map((o) => o.trim().replace(/\/$/, ''))
+        .filter(Boolean);
+
+      const cleanOrigin = requestOrigin.replace(/\/$/, '');
+
+      if (
+        allowedList.includes('*') ||
+        allowedList.includes(cleanOrigin) ||
+        cleanOrigin.includes('localhost') ||
+        cleanOrigin.includes('vercel.app')
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(null, true);
+    },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type,Accept,Authorization',
