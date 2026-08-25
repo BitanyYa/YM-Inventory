@@ -22,6 +22,23 @@ interface ProductFormProps {
   isLoading?: boolean;
 }
 
+const BRAND_OPTIONS: { label: string; value: string }[] = [
+  { label: 'Apple', value: 'Apple' },
+  { label: 'Samsung', value: 'Samsung' },
+  { label: 'Xiaomi', value: 'Xiaomi' },
+  { label: 'Tecno', value: 'Tecno' },
+  { label: 'Infinix', value: 'Infinix' },
+  { label: 'Itel', value: 'Itel' },
+  { label: 'Huawei', value: 'Huawei' },
+  { label: 'Nokia', value: 'Nokia' },
+  { label: 'Sony', value: 'Sony' },
+  { label: 'Dell', value: 'Dell' },
+  { label: 'HP', value: 'HP' },
+  { label: 'Lenovo', value: 'Lenovo' },
+  { label: 'Generic', value: 'Generic' },
+  { label: '+ Custom / Other Brand…', value: 'OTHER' },
+];
+
 const PRODUCT_TYPE_OPTIONS: { label: string; value: ProductType }[] = [
   { label: 'Accessory / Repair Part', value: 'ACCESSORY' },
   { label: 'Phone', value: 'PHONE' },
@@ -122,6 +139,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const [name, setName] = useState(initialValues?.name ?? '');
   const [brand, setBrand] = useState(initialValues?.brand ?? '');
+  const [isCustomBrand, setIsCustomBrand] = useState(
+    initialValues?.brand
+      ? !BRAND_OPTIONS.some((b) => b.value === initialValues.brand && b.value !== 'OTHER')
+      : false
+  );
   const [categoryId, setCategoryId] = useState(initialValues?.category?.id ?? '');
   const [productType, setProductType] = useState<ProductType>(initialValues?.productType ?? 'ACCESSORY');
   const [trackingType, setTrackingType] = useState<TrackingType>(initialValues?.trackingType ?? 'QUANTITY');
@@ -210,8 +232,43 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-w-full">
             <Input label="Product Name *" placeholder="e.g. Samsung A15 Screen"
               value={name} onChange={(e) => setName(e.target.value)} required />
-            <Input label="Brand *" placeholder="e.g. Samsung, Apple, Generic"
-              value={brand} onChange={(e) => setBrand(e.target.value)} required />
+            <div className="min-w-0 max-w-full">
+              <CustomSelect
+                label="Brand *"
+                value={
+                  isCustomBrand
+                    ? 'OTHER'
+                    : BRAND_OPTIONS.some((b) => b.value === brand)
+                      ? brand
+                      : brand
+                        ? 'OTHER'
+                        : ''
+                }
+                placeholder="Select brand…"
+                options={BRAND_OPTIONS}
+                onChange={(val) => {
+                  if (val === 'OTHER') {
+                    setIsCustomBrand(true);
+                    if (BRAND_OPTIONS.some((b) => b.value === brand)) {
+                      setBrand('');
+                    }
+                  } else {
+                    setIsCustomBrand(false);
+                    setBrand(val);
+                  }
+                }}
+              />
+              {(isCustomBrand || (!BRAND_OPTIONS.some((b) => b.value === brand) && brand)) && (
+                <div className="mt-1.5">
+                  <Input
+                    placeholder="Type custom brand name…"
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+            </div>
 
             <div className="min-w-0 max-w-full">
               <div className="flex items-center justify-between mb-1">
