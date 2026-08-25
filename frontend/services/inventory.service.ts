@@ -76,7 +76,17 @@ const INVENTORY_CACHE_TTL_MS = 15000;
 let cachedSummary: { data: InventorySummaryResponse; timestamp: number } | null = null;
 let pendingSummaryPromise: Promise<InventorySummaryResponse> | null = null;
 
+export function invalidateInventoryCache(): void {
+  inventoryCache.clear();
+  cachedSummary = null;
+}
+
 export const inventoryService = {
+  /** Invalidate in-memory inventory list and summary caches */
+  invalidateCache(): void {
+    invalidateInventoryCache();
+  },
+
   /**
    * GET /inventory
    * We flatten each item into the InventoryProductItem shape expected by the UI.
@@ -207,6 +217,7 @@ export const inventoryService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
   },
 
   /**
@@ -218,6 +229,7 @@ export const inventoryService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
   },
 
   /**
@@ -229,6 +241,7 @@ export const inventoryService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
   },
 
   /**
@@ -240,6 +253,7 @@ export const inventoryService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
   },
 
   /**
@@ -251,6 +265,7 @@ export const inventoryService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
   },
 
   /**
@@ -262,6 +277,7 @@ export const inventoryService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
   },
 
   /**
@@ -273,6 +289,7 @@ export const inventoryService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
   },
 
   /**
@@ -312,10 +329,12 @@ export const inventoryService = {
    * Physical inventory audit reconciliation for QUANTITY or SERIALIZED products (ADMIN only).
    */
   async reconcileStock(data: ReconcileStockRequest): Promise<ReconcileStockResponse> {
-    return apiClient<ReconcileStockResponse>('/stock/reconcile', {
+    const res = await apiClient<ReconcileStockResponse>('/stock/reconcile', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    invalidateInventoryCache();
+    return res;
   },
 };
 

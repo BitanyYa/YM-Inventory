@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Location, MovementType, TrackingType, UserRole } from '@prisma/client';
 import { Reflector } from '@nestjs/core';
@@ -302,6 +302,59 @@ describe('Physical Inventory Reconciliation Backend Tests', () => {
       expect(mockPrismaService.product.findUnique).toHaveBeenCalledWith({
         where: { id: 'prod-qty-3' },
       });
+    });
+
+    // Test 11: Duplicate serial numbers in receiveStock payload throw ConflictException (F-02)
+    it('11. Duplicate serial numbers in receiveStock payload throw ConflictException', async () => {
+      const mockProd = {
+        id: 'prod-ser-1',
+        name: 'iPhone 13',
+        trackingType: TrackingType.SERIALIZED,
+        isActive: true,
+      };
+
+      mockPrismaService.product.findUnique.mockResolvedValue(mockProd);
+
+      await expect(
+        stockService.receiveStock(
+          {
+            productId: 'prod-ser-1',
+            units: [
+              { imei: 'IMEI001', serialNumber: 'SN-DUP-1', purchasePrice: 500 },
+              { imei: 'IMEI002', serialNumber: 'SN-DUP-1', purchasePrice: 500 },
+            ],
+          },
+          'admin-user-id',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    // Test 12: Existing serial number in database throws ConflictException (F-02)
+    it('12. Existing serial number in database throws ConflictException', async () => {
+      const mockProd = {
+        id: 'prod-ser-1',
+        name: 'iPhone 13',
+        trackingType: TrackingType.SERIALIZED,
+        isActive: true,
+      };
+
+      mockPrismaService.product.findUnique.mockResolvedValue(mockProd);
+      mockTx.productUnit.findUnique.mockImplementation(({ where }) => {
+        if (where.serialNumber === 'SN-EXISTING-1') {
+          return Promise.resolve({ id: 'unit-exist-1', serialNumber: 'SN-EXISTING-1' });
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(
+        stockService.receiveStock(
+          {
+            productId: 'prod-ser-1',
+            units: [{ imei: 'IMEI009', serialNumber: 'SN-EXISTING-1', purchasePrice: 500 }],
+          },
+          'admin-user-id',
+        ),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

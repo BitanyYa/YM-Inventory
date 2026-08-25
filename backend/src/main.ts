@@ -6,8 +6,18 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS
-  app.enableCors();
+  // Enable Configurable CORS
+  const corsOriginEnv = process.env.CORS_ORIGIN;
+  const allowedOrigins = corsOriginEnv
+    ? corsOriginEnv.split(',').map((o) => o.trim()).filter(Boolean)
+    : true;
+
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type,Accept,Authorization',
+  });
 
   // Global ValidationPipe
   app.useGlobalPipes(

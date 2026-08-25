@@ -130,6 +130,7 @@ export class StockService {
         quantityReceived = dto.units.length;
 
         const imeiSet = new Set<string>();
+        const serialSet = new Set<string>();
         for (const unit of dto.units) {
           if (!unit.imei) {
             throw new BadRequestException('IMEI is required for every unit');
@@ -145,6 +146,16 @@ export class StockService {
             );
           }
           imeiSet.add(unit.imei);
+
+          if (unit.serialNumber && unit.serialNumber.trim()) {
+            const trimmedSerial = unit.serialNumber.trim();
+            if (serialSet.has(trimmedSerial)) {
+              throw new ConflictException(
+                `Duplicate Serial Number "${trimmedSerial}" found in the request payload`,
+              );
+            }
+            serialSet.add(trimmedSerial);
+          }
         }
 
         const createdUnits: any[] = [];
@@ -159,11 +170,24 @@ export class StockService {
             );
           }
 
+          if (unit.serialNumber && unit.serialNumber.trim()) {
+            const trimmedSerial = unit.serialNumber.trim();
+            const existingSerialUnit = await tx.productUnit.findUnique({
+              where: { serialNumber: trimmedSerial },
+            });
+
+            if (existingSerialUnit) {
+              throw new ConflictException(
+                `Unit with Serial Number "${trimmedSerial}" already exists in the system`,
+              );
+            }
+          }
+
           const createdUnit = await tx.productUnit.create({
             data: {
               productId: product.id,
               imei: unit.imei,
-              serialNumber: unit.serialNumber || null,
+              serialNumber: unit.serialNumber?.trim() || null,
               storage: unit.storage || null,
               color: unit.color || null,
               purchasePrice: unit.purchasePrice,
