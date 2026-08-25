@@ -17,6 +17,7 @@ import {
 import { AppShell } from '../../components/layout/AppShell';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { SearchIcon, AlertTriangleIcon, InventoryIcon } from '../../components/ui/Icons';
 import { ReceiveStockModal } from '../../components/inventory/ReceiveStockModal';
 import { TransferStockModal } from '../../components/inventory/TransferStockModal';
@@ -73,18 +74,18 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
   const updateCoords = useCallback(() => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const menuHeight = 220;
+      const actualMenuHeight = menuRef.current?.offsetHeight || 285;
       const spaceBelow = window.innerHeight - rect.bottom;
-      const right = window.innerWidth - rect.right;
+      const right = Math.max(10, window.innerWidth - rect.right);
 
-      if (spaceBelow < menuHeight && rect.top > menuHeight) {
+      if (spaceBelow < actualMenuHeight && rect.top > spaceBelow) {
         setCoords({
-          bottom: window.innerHeight - rect.top + 4,
+          bottom: Math.max(10, window.innerHeight - rect.top + 4),
           right,
         });
       } else {
         setCoords({
-          top: rect.bottom + 4,
+          top: Math.min(rect.bottom + 4, Math.max(10, window.innerHeight - actualMenuHeight - 10)),
           right,
         });
       }
@@ -102,6 +103,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
 
   useEffect(() => {
     if (!open) return;
+    updateCoords();
     const handleScrollOrResize = () => setOpen(false);
     window.addEventListener('scroll', handleScrollOrResize, true);
     window.addEventListener('resize', handleScrollOrResize);
@@ -109,7 +111,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
       window.removeEventListener('scroll', handleScrollOrResize, true);
       window.removeEventListener('resize', handleScrollOrResize);
     };
-  }, [open]);
+  }, [open, updateCoords]);
 
   useEffect(() => {
     if (!open) return;
@@ -129,7 +131,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
 
   const items = [
     { label: 'Receive Stock', type: 'receive' as ModalType, adminOnly: true },
-    { label: 'Transfer to Shop', type: 'transfer' as ModalType, adminOnly: true },
+    { label: 'Transfer Stock', type: 'transfer' as ModalType, adminOnly: true },
     { label: 'Sell', type: 'sell' as ModalType, adminOnly: false },
     { label: 'Return', type: 'return' as ModalType, adminOnly: false },
     { label: 'Damage / Loss', type: 'damage' as ModalType, adminOnly: false, danger: true },
@@ -469,28 +471,49 @@ export default function InventoryPage() {
                 />
               </div>
               <div className="flex flex-wrap gap-1.5">
-                <select value={productType} onChange={(e) => { setProductType(e.target.value as ProductType | ''); setPage(1); }} className={selectCls}>
-                  <option value="">All Types</option>
-                  <option value="PHONE">Phone</option>
-                  <option value="ACCESSORY">Accessory / Repair</option>
-                  <option value="TABLET">Tablet</option>
-                  <option value="LAPTOP">Laptop</option>
-                  <option value="SMART_WATCH">Smart Watch</option>
-                  <option value="OTHER">Other</option>
-                </select>
-                <select value={trackingType} onChange={(e) => { setTrackingType(e.target.value as TrackingType | ''); setPage(1); }} className={selectCls}>
-                  <option value="">All Tracking</option>
-                  <option value="QUANTITY">Quantity</option>
-                  <option value="SERIALIZED">Serialized</option>
-                </select>
-                <select value={stockStatus} onChange={(e) => { setStockStatus(e.target.value as InventoryStockStatus | ''); setPage(1); }} className={selectCls}>
-                  <option value="">All Status</option>
-                  <option value="IN_STOCK">In Stock</option>
-                  <option value="LOW_STOCK">Low Stock</option>
-                  <option value="OUT_OF_STOCK">Out of Stock</option>
-                </select>
+                <Select
+                  size="sm"
+                  className="w-32"
+                  value={productType}
+                  placeholder="All Types"
+                  options={[
+                    { label: 'All Types', value: '' },
+                    { label: 'Phone', value: 'PHONE' },
+                    { label: 'Accessory / Repair', value: 'ACCESSORY' },
+                    { label: 'Tablet', value: 'TABLET' },
+                    { label: 'Laptop', value: 'LAPTOP' },
+                    { label: 'Smart Watch', value: 'SMART_WATCH' },
+                    { label: 'Other', value: 'OTHER' },
+                  ]}
+                  onChange={(val) => { setProductType(val as ProductType | ''); setPage(1); }}
+                />
+                <Select
+                  size="sm"
+                  className="w-32"
+                  value={trackingType}
+                  placeholder="All Tracking"
+                  options={[
+                    { label: 'All Tracking', value: '' },
+                    { label: 'Quantity', value: 'QUANTITY' },
+                    { label: 'Serialized', value: 'SERIALIZED' },
+                  ]}
+                  onChange={(val) => { setTrackingType(val as TrackingType | ''); setPage(1); }}
+                />
+                <Select
+                  size="sm"
+                  className="w-32"
+                  value={stockStatus}
+                  placeholder="All Status"
+                  options={[
+                    { label: 'All Status', value: '' },
+                    { label: 'In Stock', value: 'IN_STOCK' },
+                    { label: 'Low Stock', value: 'LOW_STOCK' },
+                    { label: 'Out of Stock', value: 'OUT_OF_STOCK' },
+                  ]}
+                  onChange={(val) => { setStockStatus(val as InventoryStockStatus | ''); setPage(1); }}
+                />
                 {hasFilters && (
-                  <button onClick={resetFilters} className={`${selectCls} hover:bg-[#F5F5F7]`}>
+                  <button onClick={resetFilters} className="rounded-xl border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]">
                     Clear
                   </button>
                 )}

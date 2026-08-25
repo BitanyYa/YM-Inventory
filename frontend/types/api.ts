@@ -456,6 +456,8 @@ export interface ReceiveStockRequest {
 
 export interface TransferStockRequest {
   productId: string;
+  fromLocation?: Location;
+  toLocation?: Location;
   quantity?: number;
   unitIds?: string[];
   note?: string;

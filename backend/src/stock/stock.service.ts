@@ -245,11 +245,17 @@ export class StockService {
       );
     }
 
+    const fromLoc = dto.fromLocation || Location.WAREHOUSE;
+    const toLoc = dto.toLocation || (fromLoc === Location.WAREHOUSE ? Location.SHOP : Location.WAREHOUSE);
+
+    if (fromLoc === toLoc) {
+      throw new BadRequestException('fromLocation and toLocation cannot be the same');
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      let updatedWarehouseInventory;
-      let updatedShopInventory;
+      let updatedFromInventory;
+      let updatedToInventory;
       let quantityTransferred = 0;
-      let transferredUnits: any[] = [];
 
       if (product.trackingType === TrackingType.QUANTITY) {
         if (!dto.quantity || dto.quantity <= 0) {
@@ -260,49 +266,49 @@ export class StockService {
 
         quantityTransferred = dto.quantity;
 
-        const warehouseInventory = await tx.inventory.findUnique({
+        const fromInventory = await tx.inventory.findUnique({
           where: {
             productId_location: {
               productId: product.id,
-              location: Location.WAREHOUSE,
+              location: fromLoc,
             },
           },
         });
 
-        if (!warehouseInventory || warehouseInventory.quantity < dto.quantity) {
+        if (!fromInventory || fromInventory.quantity < dto.quantity) {
           throw new BadRequestException(
-            `Insufficient warehouse stock for product "${product.name}". Requested: ${dto.quantity}, Available: ${warehouseInventory?.quantity || 0}`,
+            `Insufficient ${fromLoc.toLowerCase()} stock for product "${product.name}". Requested: ${dto.quantity}, Available: ${fromInventory?.quantity || 0}`,
           );
         }
 
-        updatedWarehouseInventory = await tx.inventory.update({
-          where: { id: warehouseInventory.id },
+        updatedFromInventory = await tx.inventory.update({
+          where: { id: fromInventory.id },
           data: {
             quantity: { decrement: dto.quantity },
           },
         });
 
-        const shopInventory = await tx.inventory.findUnique({
+        const toInventory = await tx.inventory.findUnique({
           where: {
             productId_location: {
               productId: product.id,
-              location: Location.SHOP,
+              location: toLoc,
             },
           },
         });
 
-        if (shopInventory) {
-          updatedShopInventory = await tx.inventory.update({
-            where: { id: shopInventory.id },
+        if (toInventory) {
+          updatedToInventory = await tx.inventory.update({
+            where: { id: toInventory.id },
             data: {
               quantity: { increment: dto.quantity },
             },
           });
         } else {
-          updatedShopInventory = await tx.inventory.create({
+          updatedToInventory = await tx.inventory.create({
             data: {
               productId: product.id,
-              location: Location.SHOP,
+              location: toLoc,
               quantity: dto.quantity,
             },
           });
@@ -313,8 +319,8 @@ export class StockService {
             productId: product.id,
             movementType: MovementType.TRANSFER,
             quantity: dto.quantity,
-            fromLocation: Location.WAREHOUSE,
-            toLocation: Location.SHOP,
+            fromLocation: fromLoc,
+            toLocation: toLoc,
             createdById: userId,
             note: dto.note || null,
           },
@@ -322,8 +328,8 @@ export class StockService {
 
         return {
           movement,
-          warehouseInventory: updatedWarehouseInventory,
-          shopInventory: updatedShopInventory,
+          fromInventory: updatedFromInventory,
+          toInventory: updatedToInventory,
           quantityTransferred,
           transferredUnits: [],
         };
@@ -352,36 +358,39 @@ export class StockService {
           );
         }
 
+        const requiredStatus = fromLoc === Location.WAREHOUSE ? UnitStatus.AVAILABLE : UnitStatus.IN_SHOP;
+        const targetStatus = toLoc === Location.WAREHOUSE ? UnitStatus.AVAILABLE : UnitStatus.IN_SHOP;
+
         for (const unit of units) {
           if (unit.productId !== product.id) {
             throw new BadRequestException(
               `Product unit "${unit.id}" does not belong to product "${product.name}"`,
             );
           }
-          if (unit.location !== Location.WAREHOUSE) {
+          if (unit.location !== fromLoc) {
             throw new BadRequestException(
-              `Product unit "${unit.id}" is not currently located in WAREHOUSE (location: ${unit.location})`,
+              `Product unit "${unit.id}" is not currently located in ${fromLoc} (location: ${unit.location})`,
             );
           }
-          if (unit.status !== UnitStatus.AVAILABLE) {
+          if (unit.status !== requiredStatus) {
             throw new BadRequestException(
-              `Product unit "${unit.id}" is not currently AVAILABLE (status: ${unit.status})`,
+              `Product unit "${unit.id}" is not currently in ${requiredStatus} status (current status: ${unit.status})`,
             );
           }
         }
 
-        const warehouseInventory = await tx.inventory.findUnique({
+        const fromInventory = await tx.inventory.findUnique({
           where: {
             productId_location: {
               productId: product.id,
-              location: Location.WAREHOUSE,
+              location: fromLoc,
             },
           },
         });
 
-        if (!warehouseInventory || warehouseInventory.quantity < dto.unitIds.length) {
+        if (!fromInventory || fromInventory.quantity < dto.unitIds.length) {
           throw new BadRequestException(
-            `Insufficient warehouse stock quantity for product "${product.name}". Requested: ${dto.unitIds.length}, Available: ${warehouseInventory?.quantity || 0}`,
+            `Insufficient ${fromLoc.toLowerCase()} stock quantity for product "${product.name}". Requested: ${dto.unitIds.length}, Available: ${fromInventory?.quantity || 0}`,
           );
         }
 
@@ -390,39 +399,39 @@ export class StockService {
             id: { in: dto.unitIds },
           },
           data: {
-            location: Location.SHOP,
-            status: UnitStatus.IN_SHOP,
+            location: toLoc,
+            status: targetStatus,
           },
         });
 
-        updatedWarehouseInventory = await tx.inventory.update({
-          where: { id: warehouseInventory.id },
+        updatedFromInventory = await tx.inventory.update({
+          where: { id: fromInventory.id },
           data: {
             quantity: { decrement: dto.unitIds.length },
           },
         });
 
-        const shopInventory = await tx.inventory.findUnique({
+        const toInventory = await tx.inventory.findUnique({
           where: {
             productId_location: {
               productId: product.id,
-              location: Location.SHOP,
+              location: toLoc,
             },
           },
         });
 
-        if (shopInventory) {
-          updatedShopInventory = await tx.inventory.update({
-            where: { id: shopInventory.id },
+        if (toInventory) {
+          updatedToInventory = await tx.inventory.update({
+            where: { id: toInventory.id },
             data: {
               quantity: { increment: dto.unitIds.length },
             },
           });
         } else {
-          updatedShopInventory = await tx.inventory.create({
+          updatedToInventory = await tx.inventory.create({
             data: {
               productId: product.id,
-              location: Location.SHOP,
+              location: toLoc,
               quantity: dto.unitIds.length,
             },
           });
@@ -433,8 +442,8 @@ export class StockService {
             productId: product.id,
             movementType: MovementType.TRANSFER,
             quantity: dto.unitIds.length,
-            fromLocation: Location.WAREHOUSE,
-            toLocation: Location.SHOP,
+            fromLocation: fromLoc,
+            toLocation: toLoc,
             createdById: userId,
             note: dto.note || null,
           },
@@ -449,32 +458,12 @@ export class StockService {
           });
         }
 
-        const rawTransferredUnits = await tx.productUnit.findMany({
-          where: {
-            id: { in: dto.unitIds },
-          },
-          select: {
-            id: true,
-            imei: true,
-            storage: true,
-            color: true,
-            purchasePrice: true,
-            location: true,
-            status: true,
-          },
-        });
-
-        transferredUnits = rawTransferredUnits.map((u) => ({
-          ...u,
-          purchasePrice: u.purchasePrice ? Number(u.purchasePrice) : null,
-        }));
-
         return {
           movement,
-          warehouseInventory: updatedWarehouseInventory,
-          shopInventory: updatedShopInventory,
+          fromInventory: updatedFromInventory,
+          toInventory: updatedToInventory,
           quantityTransferred,
-          transferredUnits,
+          transferredUnits: units,
         };
       }
     });

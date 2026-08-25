@@ -7,6 +7,7 @@ import { inventoryService } from '../../services/inventory.service';
 import { AppShell } from '../../components/layout/AppShell';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { MovementDetailsModal } from '../../components/inventory/MovementDetailsModal';
 import { SearchIcon, AlertTriangleIcon } from '../../components/ui/Icons';
 import { formatDate } from '../../lib/utils';
@@ -46,6 +47,60 @@ function adjustmentDirectionLabel(m: StockMovementItem): string | null {
   return null;
 }
 
+type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'LAST_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM';
+
+function getDateRangeFromPreset(preset: DatePreset): { startDate?: string; endDate?: string } {
+  const now = new Date();
+
+  const formatDateStr = (d: Date): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  switch (preset) {
+    case 'TODAY': {
+      const todayStr = formatDateStr(now);
+      return { startDate: todayStr, endDate: todayStr };
+    }
+    case 'YESTERDAY': {
+      const yest = new Date(now);
+      yest.setDate(now.getDate() - 1);
+      const yestStr = formatDateStr(yest);
+      return { startDate: yestStr, endDate: yestStr };
+    }
+    case 'THIS_WEEK': {
+      const dayOfWeek = now.getDay();
+      const distanceToMon = (dayOfWeek + 6) % 7;
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - distanceToMon);
+      return { startDate: formatDateStr(startOfWeek), endDate: formatDateStr(now) };
+    }
+    case 'LAST_WEEK': {
+      const dayOfWeek = now.getDay();
+      const distanceToMon = (dayOfWeek + 6) % 7;
+      const endOfLastWeek = new Date(now);
+      endOfLastWeek.setDate(now.getDate() - distanceToMon - 1);
+      const startOfLastWeek = new Date(endOfLastWeek);
+      startOfLastWeek.setDate(endOfLastWeek.getDate() - 6);
+      return { startDate: formatDateStr(startOfLastWeek), endDate: formatDateStr(endOfLastWeek) };
+    }
+    case 'THIS_MONTH': {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { startDate: formatDateStr(startOfMonth), endDate: formatDateStr(now) };
+    }
+    case 'LAST_MONTH': {
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { startDate: formatDateStr(startOfLastMonth), endDate: formatDateStr(endOfLastMonth) };
+    }
+    case 'ALL':
+    default:
+      return { startDate: undefined, endDate: undefined };
+  }
+}
+
 function SkelRow() {
   return (
     <tr>
@@ -68,6 +123,7 @@ export default function MovementsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [movementType, setMovementType] = useState<MovementType | ''>('');
   const [locationFilter, setLocationFilter] = useState<Location | ''>('');
+  const [datePreset, setDatePreset] = useState<DatePreset>('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
@@ -100,11 +156,35 @@ export default function MovementsPage() {
 
   useEffect(() => { fetchMovements(); }, [fetchMovements]);
 
+  const handlePresetChange = (val: string) => {
+    const preset = val as DatePreset;
+    setDatePreset(preset);
+    if (preset !== 'CUSTOM') {
+      const { startDate: s, endDate: e } = getDateRangeFromPreset(preset);
+      setStartDate(s || '');
+      setEndDate(e || '');
+      setPage(1);
+    }
+  };
+
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    setDatePreset('CUSTOM');
+    setPage(1);
+  };
+
+  const handleEndDateChange = (val: string) => {
+    setEndDate(val);
+    setDatePreset('CUSTOM');
+    setPage(1);
+  };
+
   const hasFilters = !!(debouncedSearch || movementType || locationFilter || startDate || endDate);
   const resetFilters = () => {
     setSearch('');
     setMovementType('');
     setLocationFilter('');
+    setDatePreset('ALL');
     setStartDate('');
     setEndDate('');
     setPage(1);
@@ -148,37 +228,61 @@ export default function MovementsPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <select
+            <Select
+              size="sm"
+              className="w-36"
               value={movementType}
-              onChange={(e) => { setMovementType(e.target.value as MovementType | ''); setPage(1); }}
-              className={selectCls}
-            >
-              <option value="">All Operations</option>
-              <option value="STOCK_IN">Stock In</option>
-              <option value="TRANSFER">Transfer</option>
-              <option value="SALE">Sale</option>
-              <option value="RETURN">Return</option>
-              <option value="DAMAGE">Damage</option>
-              <option value="LOSS">Loss</option>
-              <option value="ADJUSTMENT">Adjustment</option>
-            </select>
+              placeholder="All Operations"
+              options={[
+                { label: 'All Operations', value: '' },
+                { label: 'Stock In', value: 'STOCK_IN' },
+                { label: 'Transfer', value: 'TRANSFER' },
+                { label: 'Sale', value: 'SALE' },
+                { label: 'Return', value: 'RETURN' },
+                { label: 'Damage', value: 'DAMAGE' },
+                { label: 'Loss', value: 'LOSS' },
+                { label: 'Adjustment', value: 'ADJUSTMENT' },
+              ]}
+              onChange={(val) => { setMovementType(val as MovementType | ''); setPage(1); }}
+            />
 
-            <select
+            <Select
+              size="sm"
+              className="w-32"
               value={locationFilter}
-              onChange={(e) => { setLocationFilter(e.target.value as Location | ''); setPage(1); }}
-              className={selectCls}
-            >
-              <option value="">All Locations</option>
-              <option value="WAREHOUSE">Warehouse</option>
-              <option value="SHOP">Shop</option>
-            </select>
+              placeholder="All Locations"
+              options={[
+                { label: 'All Locations', value: '' },
+                { label: 'Warehouse', value: 'WAREHOUSE' },
+                { label: 'Shop', value: 'SHOP' },
+              ]}
+              onChange={(val) => { setLocationFilter(val as Location | ''); setPage(1); }}
+            />
+
+            <Select
+              size="sm"
+              className="w-32"
+              value={datePreset}
+              placeholder="All Time"
+              options={[
+                { label: 'All Time', value: 'ALL' },
+                { label: 'Today', value: 'TODAY' },
+                { label: 'Yesterday', value: 'YESTERDAY' },
+                { label: 'This Week', value: 'THIS_WEEK' },
+                { label: 'Last Week', value: 'LAST_WEEK' },
+                { label: 'This Month', value: 'THIS_MONTH' },
+                { label: 'Last Month', value: 'LAST_MONTH' },
+                { label: 'Custom Range', value: 'CUSTOM' },
+              ]}
+              onChange={handlePresetChange}
+            />
 
             <div className="flex items-center gap-1">
               <span className="text-[11px] text-[#86868B]">From:</span>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                onChange={(e) => handleStartDateChange(e.target.value)}
                 className={inputCls}
               />
             </div>
@@ -188,13 +292,13 @@ export default function MovementsPage() {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                onChange={(e) => handleEndDateChange(e.target.value)}
                 className={inputCls}
               />
             </div>
 
             {hasFilters && (
-              <button onClick={resetFilters} className={`${selectCls} hover:bg-[#F5F5F7]`}>Clear</button>
+              <button onClick={resetFilters} className="rounded-xl border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]">Clear</button>
             )}
           </div>
         </div>

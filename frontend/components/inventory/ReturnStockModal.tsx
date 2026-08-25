@@ -10,6 +10,7 @@ import {
   TrackingType,
 } from '../../types/api';
 import { inventoryService } from '../../services/inventory.service';
+import { productService } from '../../services/product.service';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
@@ -143,11 +144,10 @@ export const ReturnStockModal: React.FC<Props> = ({
     if (!isOpen || phase !== 'return' || !selectedProduct || !isSerialized) return;
     setLoadingUnits(true);
     setSelectedIds([]);
-    inventoryService
-      .getProductInventoryDetail(selectedProduct.id)
+    productService
+      .getUnits({ productId: selectedProduct.id, status: 'SOLD' })
       .then((res) => {
-        const sold = (res.data.units ?? []).filter((u) => u.status === 'SOLD');
-        setSoldUnits(sold);
+        setSoldUnits(res.data ?? []);
       })
       .catch(() => setSoldUnits([]))
       .finally(() => setLoadingUnits(false));

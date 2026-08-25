@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Location } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -12,11 +14,29 @@ import {
 export class TransferStockDto {
   @ApiProperty({
     example: 'uuid-product-id',
-    description: 'Product ID to transfer from Warehouse to Shop',
+    description: 'Product ID to transfer stock',
   })
   @IsString()
   @IsNotEmpty()
   productId: string;
+
+  @ApiPropertyOptional({
+    enum: Location,
+    example: Location.WAREHOUSE,
+    description: 'Source location (default: WAREHOUSE)',
+  })
+  @IsEnum(Location)
+  @IsOptional()
+  fromLocation?: Location;
+
+  @ApiPropertyOptional({
+    enum: Location,
+    example: Location.SHOP,
+    description: 'Destination location (default: SHOP)',
+  })
+  @IsEnum(Location)
+  @IsOptional()
+  toLocation?: Location;
 
   @ApiPropertyOptional({
     example: 5,

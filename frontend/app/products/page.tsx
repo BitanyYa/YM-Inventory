@@ -12,6 +12,7 @@ import {
 import { AppShell } from '../../components/layout/AppShell';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 import { CreateProductModal } from '../../components/products/CreateProductModal';
 import { EditProductModal } from '../../components/products/EditProductModal';
 import { CreateCategoryModal } from '../../components/categories/CreateCategoryModal';
@@ -54,14 +55,14 @@ function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: Product
   const updateCoords = React.useCallback(() => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const menuHeight = 120;
+      const actualMenuHeight = menuRef.current?.offsetHeight || 160;
       const spaceBelow = window.innerHeight - rect.bottom;
-      const right = window.innerWidth - rect.right;
+      const right = Math.max(10, window.innerWidth - rect.right);
 
-      if (spaceBelow < menuHeight && rect.top > menuHeight) {
-        setCoords({ bottom: window.innerHeight - rect.top + 4, right });
+      if (spaceBelow < actualMenuHeight && rect.top > spaceBelow) {
+        setCoords({ bottom: Math.max(10, window.innerHeight - rect.top + 4), right });
       } else {
-        setCoords({ top: rect.bottom + 4, right });
+        setCoords({ top: Math.min(rect.bottom + 4, Math.max(10, window.innerHeight - actualMenuHeight - 10)), right });
       }
     }
   }, []);
@@ -73,6 +74,7 @@ function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: Product
 
   React.useEffect(() => {
     if (!open) return;
+    updateCoords();
     const handleScrollOrResize = () => setOpen(false);
     window.addEventListener('scroll', handleScrollOrResize, true);
     window.addEventListener('resize', handleScrollOrResize);
@@ -80,7 +82,7 @@ function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: Product
       window.removeEventListener('scroll', handleScrollOrResize, true);
       window.removeEventListener('resize', handleScrollOrResize);
     };
-  }, [open]);
+  }, [open, updateCoords]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -312,27 +314,32 @@ export default function ProductsPage() {
             {[
               {
                 value: productType, onChange: (v: string) => { setProductType(v as ProductType | ''); setPage(1); },
-                options: [['', 'All Types'], ['PHONE', 'Phone'], ['ACCESSORY', 'Accessory'], ['TABLET', 'Tablet'], ['LAPTOP', 'Laptop'], ['SMART_WATCH', 'Smart Watch'], ['OTHER', 'Other']],
+                options: [{ label: 'All Types', value: '' }, { label: 'Phone', value: 'PHONE' }, { label: 'Accessory', value: 'ACCESSORY' }, { label: 'Tablet', value: 'TABLET' }, { label: 'Laptop', value: 'LAPTOP' }, { label: 'Smart Watch', value: 'SMART_WATCH' }, { label: 'Other', value: 'OTHER' }],
               },
               {
                 value: trackingType, onChange: (v: string) => { setTrackingType(v as TrackingType | ''); setPage(1); },
-                options: [['', 'All Tracking'], ['QUANTITY', 'Quantity'], ['SERIALIZED', 'Serialized']],
+                options: [{ label: 'All Tracking', value: '' }, { label: 'Quantity', value: 'QUANTITY' }, { label: 'Serialized', value: 'SERIALIZED' }],
               },
               {
                 value: stockStatusFilter, onChange: (v: string) => { setStockStatusFilter(v as InventoryStockStatus | ''); setPage(1); },
-                options: [['', 'All Status'], ['IN_STOCK', 'In Stock'], ['LOW_STOCK', 'Low Stock'], ['OUT_OF_STOCK', 'Out of Stock']],
+                options: [{ label: 'All Status', value: '' }, { label: 'In Stock', value: 'IN_STOCK' }, { label: 'Low Stock', value: 'LOW_STOCK' }, { label: 'Out of Stock', value: 'OUT_OF_STOCK' }],
               },
               {
                 value: isActiveFilter, onChange: (v: string) => { setIsActiveFilter(v); setPage(1); },
-                options: [['true', 'Active'], ['false', 'Inactive'], ['all', 'All']],
+                options: [{ label: 'Active', value: 'true' }, { label: 'Inactive', value: 'false' }, { label: 'All Statuses', value: 'all' }],
               },
             ].map((sel, i) => (
-              <select key={i} value={sel.value} onChange={(e) => sel.onChange(e.target.value)} className={inputCls}>
-                {sel.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              <Select
+                key={i}
+                size="sm"
+                className="w-32"
+                value={sel.value}
+                options={sel.options}
+                onChange={sel.onChange}
+              />
             ))}
             {hasFilters && (
-              <button onClick={resetFilters} className={`${inputCls} hover:bg-[#F5F5F7]`}>Clear</button>
+              <button onClick={resetFilters} className="rounded-xl border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]">Clear</button>
             )}
           </div>
         </div>

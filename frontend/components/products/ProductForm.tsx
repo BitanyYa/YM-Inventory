@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Category,
   CreateProductRequest,
@@ -31,8 +31,80 @@ const PRODUCT_TYPE_OPTIONS: { label: string; value: ProductType }[] = [
   { label: 'Other', value: 'OTHER' },
 ];
 
+interface CustomSelectProps {
+  label?: string;
+  value: string;
+  options: { label: string; value: string }[];
+  onChange: (val: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}
+
+const CustomSelect: React.FC<CustomSelectProps> = ({
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+  placeholder = 'Select option…',
+}) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative w-full max-w-full">
+      {label && <label className="block text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1">{label}</label>}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between rounded-xl border border-[#D2D2D7] bg-white px-3 py-2 text-xs text-[#1D1D1F] shadow-2xs hover:border-[#0071E3]/50 focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7] disabled:bg-[#F5F5F7] disabled:text-[#86868B]"
+      >
+        <span className="truncate">{selected?.label ?? placeholder}</span>
+        <span className="ml-2 text-[#86868B] text-[10px]">▼</span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 w-full max-w-full overflow-y-auto rounded-xl border border-[#E8E8ED] bg-white p-1 shadow-xl dark:border-[#38383A] dark:bg-[#1C1C1E]">
+          {options.map((opt) => (
+            <button
+              type="button"
+              key={opt.value}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition-colors ${
+                opt.value === value
+                  ? 'bg-[#0071E3] font-medium text-white'
+                  : 'text-[#1D1D1F] hover:bg-[#F5F5F7] dark:text-[#F5F5F7] dark:hover:bg-[#2C2C2E]'
+              }`}
+            >
+              <span className="truncate">{opt.label}</span>
+              {opt.value === value && <span className="ml-2 text-[10px]">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const selectCls =
-  'w-full rounded-lg border border-[#D2D2D7] bg-white px-3 py-1.5 text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] disabled:bg-[#F5F5F7] disabled:text-[#86868B] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]';
+  'w-full max-w-full rounded-xl border border-[#D2D2D7] bg-white px-3 py-2 text-xs text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] disabled:bg-[#F5F5F7] disabled:text-[#86868B] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7] truncate box-border';
 
 const labelCls = 'block text-xs font-medium text-[#1D1D1F] dark:text-[#F5F5F7] mb-1';
 
@@ -124,7 +196,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   return (
     <>
-      <form id="product-form" onSubmit={handleSubmit} className="space-y-4">
+      <form id="product-form" onSubmit={handleSubmit} className="space-y-4 max-w-full overflow-hidden">
 
         {(formError || categoriesError) && (
           <div className="rounded-lg border border-[#FF3B30]/20 bg-[#FFECEB] px-3 py-2 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
@@ -135,53 +207,49 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         {/* product information */}
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#86868B]">Product Information</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-w-full">
             <Input label="Product Name *" placeholder="e.g. Samsung A15 Screen"
               value={name} onChange={(e) => setName(e.target.value)} required />
             <Input label="Brand *" placeholder="e.g. Samsung, Apple, Generic"
               value={brand} onChange={(e) => setBrand(e.target.value)} required />
 
-            <div>
+            <div className="min-w-0 max-w-full">
               <div className="flex items-center justify-between mb-1">
                 <label className={labelCls.replace(' mb-1', '')}>Category *</label>
                 <button type="button" onClick={() => setIsCreateCategoryOpen(true)}
                   className="text-[11px] text-[#0071E3] hover:text-[#0077ED]">+ New</button>
               </div>
-              <select className={selectCls} value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                disabled={isCategoriesLoading} required>
-                {isCategoriesLoading ? <option value="">Loading…</option>
-                  : categories.length === 0 ? <option value="">No categories create one first</option>
-                  : (<>
-                    <option value="" disabled>Select category</option>
-                    {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                  </>)}
-              </select>
+              <CustomSelect
+                value={categoryId}
+                placeholder={isCategoriesLoading ? 'Loading…' : categories.length === 0 ? 'No categories' : 'Select category'}
+                options={categories.map((c) => ({ label: c.name, value: c.id }))}
+                onChange={(val) => setCategoryId(val)}
+                disabled={isCategoriesLoading}
+              />
             </div>
 
-            <div>
-              <label className={labelCls}>Product Type *</label>
+            <div className="min-w-0 max-w-full">
               {isEdit ? (
-                <input className={selectCls + ' cursor-not-allowed'}
-                  value={PRODUCT_TYPE_OPTIONS.find(o => o.value === productType)?.label ?? productType} disabled />
+                <Input
+                  label="Product Type *"
+                  value={PRODUCT_TYPE_OPTIONS.find(o => o.value === productType)?.label ?? productType}
+                  disabled
+                />
               ) : (
-                <select
-                  className={selectCls}
+                <CustomSelect
+                  label="Product Type *"
                   value={productType}
-                  onChange={(e) => {
-                    const newType = e.target.value as ProductType;
+                  options={PRODUCT_TYPE_OPTIONS}
+                  onChange={(val) => {
+                    const newType = val as ProductType;
                     setProductType(newType);
-                    // Smart default recommendation based on product type
                     if (newType === 'ACCESSORY' || newType === 'OTHER') {
                       setTrackingType('QUANTITY');
                     } else if (['PHONE', 'TABLET', 'LAPTOP', 'SMART_WATCH'].includes(newType)) {
                       setTrackingType('SERIALIZED');
                     }
                   }}
-                  required
-                >
-                  {PRODUCT_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                />
               )}
             </div>
           </div>

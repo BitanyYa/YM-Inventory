@@ -13,6 +13,7 @@ import {
   DamageLossStockRequest,
   AdjustStockRequest,
   ProductDetailResponse,
+  ProductUnitItem,
   ReconcileStockRequest,
   ReconcileStockResponse,
 } from '../types/api';
@@ -181,7 +182,18 @@ export const inventoryService = {
    * Detailed inventory view for a single product (used in modals to load units).
    */
   async getProductInventoryDetail(productId: string): Promise<ProductDetailResponse> {
-    return apiClient<ProductDetailResponse>(`/inventory/products/${productId}`);
+    const raw = await apiClient<{ units?: ProductUnitItem[]; product?: any; inventory?: any; unitSummary?: any; data?: any }>(`/inventory/products/${productId}`);
+    if (raw && raw.data) {
+      return raw as ProductDetailResponse;
+    }
+    return {
+      data: {
+        ...(raw?.product ?? {}),
+        inventory: raw?.inventory ?? {},
+        unitSummary: raw?.unitSummary ?? null,
+        units: raw?.units ?? [],
+      } as any,
+    };
   },
 
   /* ─── Stock Mutations ───────────────────────────────────────────────────── */

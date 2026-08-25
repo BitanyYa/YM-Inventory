@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { AppShell } from '../../components/layout/AppShell';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Select } from '../../components/ui/Select';
 import { UnitDetailsModal } from '../../components/products/UnitDetailsModal';
 import { productService } from '../../services/product.service';
 import { categoryService } from '../../services/category.service';
@@ -204,56 +205,64 @@ export default function UnitsPage() {
 
             {/* Dropdown Filters */}
             <div className="flex flex-wrap items-center gap-1.5">
-              <select
+              <Select
+                size="sm"
+                className="w-32"
                 value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value as UnitStatusFilter); setPage(1); }}
-                className={selectCls}
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="AVAILABLE">Available</option>
-                <option value="IN_SHOP">In Shop</option>
-                <option value="SOLD">Sold</option>
-                <option value="RETURNED">Returned</option>
-                <option value="DAMAGED">Damaged</option>
-                <option value="UNACCOUNTED">Unaccounted</option>
-              </select>
+                placeholder="All Statuses"
+                options={[
+                  { label: 'All Statuses', value: 'ALL' },
+                  { label: 'Available', value: 'AVAILABLE' },
+                  { label: 'In Shop', value: 'IN_SHOP' },
+                  { label: 'Sold', value: 'SOLD' },
+                  { label: 'Returned', value: 'RETURNED' },
+                  { label: 'Damaged', value: 'DAMAGED' },
+                  { label: 'Unaccounted', value: 'UNACCOUNTED' },
+                ]}
+                onChange={(val) => { setStatusFilter(val as UnitStatusFilter); setPage(1); }}
+              />
 
-              <select
+              <Select
+                size="sm"
+                className="w-32"
                 value={locationFilter}
-                onChange={(e) => { setLocationFilter(e.target.value as Location | ''); setPage(1); }}
-                className={selectCls}
-              >
-                <option value="">All Locations</option>
-                <option value="WAREHOUSE">Warehouse</option>
-                <option value="SHOP">Shop</option>
-              </select>
+                placeholder="All Locations"
+                options={[
+                  { label: 'All Locations', value: '' },
+                  { label: 'Warehouse', value: 'WAREHOUSE' },
+                  { label: 'Shop', value: 'SHOP' },
+                ]}
+                onChange={(val) => { setLocationFilter(val as Location | ''); setPage(1); }}
+              />
 
-              <select
+              <Select
+                size="sm"
+                className="w-32"
                 value={productTypeFilter}
-                onChange={(e) => { setProductTypeFilter(e.target.value as ProductType | ''); setPage(1); }}
-                className={selectCls}
-              >
-                <option value="">All Types</option>
-                <option value="PHONE">Phone</option>
-                <option value="TABLET">Tablet</option>
-                <option value="LAPTOP">Laptop</option>
-                <option value="SMART_WATCH">Smart Watch</option>
-                <option value="ACCESSORY">Accessory</option>
-                <option value="OTHER">Other</option>
-              </select>
+                placeholder="All Types"
+                options={[
+                  { label: 'All Types', value: '' },
+                  { label: 'Phone', value: 'PHONE' },
+                  { label: 'Tablet', value: 'TABLET' },
+                  { label: 'Laptop', value: 'LAPTOP' },
+                  { label: 'Smart Watch', value: 'SMART_WATCH' },
+                  { label: 'Accessory', value: 'ACCESSORY' },
+                  { label: 'Other', value: 'OTHER' },
+                ]}
+                onChange={(val) => { setProductTypeFilter(val as ProductType | ''); setPage(1); }}
+              />
 
-              <select
+              <Select
+                size="sm"
+                className="w-36"
                 value={categoryIdFilter}
-                onChange={(e) => { setCategoryIdFilter(e.target.value); setPage(1); }}
-                className={selectCls}
-              >
-                <option value="">All Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                placeholder="All Categories"
+                options={[
+                  { label: 'All Categories', value: '' },
+                  ...categories.map((c) => ({ label: c.name, value: c.id })),
+                ]}
+                onChange={(val) => { setCategoryIdFilter(val); setPage(1); }}
+              />
 
               {hasFilters && (
                 <Button variant="ghost" size="sm" onClick={resetFilters}>
