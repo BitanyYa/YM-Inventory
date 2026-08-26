@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'YM Inventory Precision Logistics & Repair',
-  description: 'Precision inventory, repair parts tracking, and stock management system',
+  title: 'YM Inventory',
+  description: 'Precision inventory management',
 };
 
 export default function RootLayout({
