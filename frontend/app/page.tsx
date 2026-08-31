@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { dashboardService } from '../services/dashboard.service';
-import { StockSummaryData, InventoryAlert, StockMovementItem, MovementType } from '../types/api';
+import { StockSummaryData, StockMovementItem, MovementType } from '../types/api';
 import { AppShell } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -19,15 +19,16 @@ function movementBadgeVariant(type: MovementType) {
     case 'RETURN': return 'warning' as const;
     case 'DAMAGE':
     case 'LOSS': return 'danger' as const;
+    case 'ADJUSTMENT': return 'warning' as const;
     default: return 'neutral' as const;
   }
 }
 
 function locationFlow(m: StockMovementItem): string {
-  if (m.movementType === 'STOCK_IN') return `→ ${m.toLocation ?? 'WH'}`;
-  if (m.movementType === 'TRANSFER') return `${m.fromLocation ?? 'WH'} → ${m.toLocation ?? 'SHOP'}`;
+  if (m.movementType === 'STOCK_IN') return `→ ${m.toLocation ?? 'WAREHOUSE'}`;
+  if (m.movementType === 'TRANSFER') return `${m.fromLocation ?? 'WAREHOUSE'} → ${m.toLocation ?? 'SHOP'}`;
   if (m.movementType === 'SALE') return `${m.fromLocation ?? 'SHOP'} → SOLD`;
-  if (m.movementType === 'RETURN') return `→ ${m.toLocation ?? 'WH'}`;
+  if (m.movementType === 'RETURN') return `→ ${m.toLocation ?? 'WAREHOUSE'}`;
   if (m.movementType === 'DAMAGE' || m.movementType === 'LOSS') return m.fromLocation ?? '—';
   return [m.fromLocation, m.toLocation].filter(Boolean).join(' → ') || '—';
 }
@@ -36,7 +37,7 @@ function SkelRow({ cols }: { cols: number }) {
   return (
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
-        <td key={i} className="px-3 py-2">
+        <td key={i} className="px-4 py-3">
           <div className="h-3.5 rounded bg-[#F1F5F9] animate-pulse dark:bg-[#334155]" style={{ width: i === 0 ? '60%' : '40%' }} />
         </td>
       ))}
@@ -48,10 +49,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
 
   const [summary, setSummary] = useState<StockSummaryData | null>(null);
-  const [alerts, setAlerts] = useState<InventoryAlert[]>([]);
   const [movements, setMovements] = useState<StockMovementItem[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(true);
-  const [alertsLoading, setAlertsLoading] = useState(true);
   const [movementsLoading, setMovementsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,25 +62,18 @@ export default function DashboardPage() {
     finally { setSummaryLoading(false); }
   }, []);
 
-  const fetchAlerts = useCallback(async () => {
-    setAlertsLoading(true);
-    try { setAlerts((await dashboardService.getAlerts(8)).data ?? []); }
-    catch { /* non-critical */ }
-    finally { setAlertsLoading(false); }
-  }, []);
-
   const fetchMovements = useCallback(async () => {
     setMovementsLoading(true);
-    try { setMovements((await dashboardService.getRecentMovements(10)).data ?? []); }
+    try { setMovements((await dashboardService.getRecentMovements(15)).data ?? []); }
     catch { /* non-critical */ }
     finally { setMovementsLoading(false); }
   }, []);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.allSettled([fetchSummary(), fetchAlerts(), fetchMovements()]);
+    await Promise.allSettled([fetchSummary(), fetchMovements()]);
     setRefreshing(false);
-  }, [fetchSummary, fetchAlerts, fetchMovements]);
+  }, [fetchSummary, fetchMovements]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -168,117 +160,74 @@ export default function DashboardPage() {
           <span className="ml-auto text-[11px] font-semibold text-[#64748B]">Select product row in Inventory to perform operations</span>
         </div>
 
-        {/* two-column tables */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-
-          {/* stock alerts */}
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-xs dark:border-[#334155] dark:bg-[#1E293B]">
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] px-4 py-3 dark:border-[#334155]">
-              <div className="flex items-center gap-2">
-                <AlertTriangleIcon size={14} className="text-[#F59E0B]" />
-                <span className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">Stock Health Alerts</span>
-                {!alertsLoading && alerts.length > 0 && (
-                  <Badge variant="danger" size="sm">{alerts.length}</Badge>
-                )}
-              </div>
-              <Link href="/inventory" className="text-[11px] font-bold text-[#2563EB] hover:text-[#1D4ED8]">
-                View Inventory →
-              </Link>
-            </div>
-
-            {alertsLoading ? (
-              <table className="w-full text-xs"><tbody>{Array.from({ length: 4 }).map((_, i) => <SkelRow key={i} cols={4} />)}</tbody></table>
-            ) : alerts.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs font-semibold text-[#64748B]">All product stock levels are healthy.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] dark:border-[#334155] dark:bg-[#0F172A]">
-                      <th className="px-4 py-2 text-left font-semibold uppercase tracking-wider text-[#64748B]">Product</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-[#64748B]">Total</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-[#64748B]">Min</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#64748B]">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F1F5F9] dark:divide-[#334155]">
-                    {alerts.map((a) => (
-                      <tr key={a.product.id} className="hover:bg-[#EFF6FF]/40 dark:hover:bg-[#334155]/40">
-                        <td className="px-4 py-2">
-                          <Link href={`/products/${a.product.id}`} className="font-semibold text-[#0F172A] hover:text-[#2563EB] dark:text-[#F8FAFC]">
-                            {a.product.name}
-                          </Link>
-                          {a.product.category && (
-                            <span className="ml-1 text-[#64748B]">· {a.product.category.name}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-bold text-[#0F172A] dark:text-[#F8FAFC]">
-                          {a.inventory.totalQuantity}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-[#64748B]">
-                          {a.product.minimumStock}
-                        </td>
-                        <td className="px-3 py-2">
-                          <Badge variant={a.stockStatus === 'OUT_OF_STOCK' ? 'danger' : 'warning'} size="sm">
-                            {a.stockStatus === 'OUT_OF_STOCK' ? 'Out of Stock' : 'Low Stock'}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* recent movements */}
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-xs dark:border-[#334155] dark:bg-[#1E293B]">
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] px-4 py-3 dark:border-[#334155]">
+        {/* recent movements full width */}
+        <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-xs dark:border-[#334155] dark:bg-[#1E293B]">
+          <div className="flex items-center justify-between border-b border-[#F1F5F9] px-4 py-3 dark:border-[#334155]">
+            <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-[#0F172A] dark:text-[#F8FAFC]">Recent Movements</span>
-              <Link href="/movements" className="text-[11px] font-bold text-[#2563EB] hover:text-[#1D4ED8]">
-                View Movements →
-              </Link>
             </div>
-
-            {movementsLoading ? (
-              <table className="w-full text-xs"><tbody>{Array.from({ length: 5 }).map((_, i) => <SkelRow key={i} cols={5} />)}</tbody></table>
-            ) : movements.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs font-semibold text-[#64748B]">No movements recorded yet.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] dark:border-[#334155] dark:bg-[#0F172A]">
-                      <th className="px-4 py-2 text-left font-semibold uppercase tracking-wider text-[#64748B]">Type</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#64748B]">Product</th>
-                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wider text-[#64748B]">Qty</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#64748B]">Flow</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider text-[#64748B] hidden sm:table-cell">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F1F5F9] dark:divide-[#334155]">
-                    {movements.map((m) => (
-                      <tr key={m.id} className="hover:bg-[#EFF6FF]/40 dark:hover:bg-[#334155]/40">
-                        <td className="px-4 py-2">
-                          <Badge variant={movementBadgeVariant(m.movementType)} size="sm">
-                            {m.movementType.replace('_', ' ')}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2 font-semibold text-[#0F172A] dark:text-[#F8FAFC] max-w-[120px]">
-                          <span className="truncate block">{m.product?.name ?? '—'}</span>
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-bold text-[#0F172A] dark:text-[#F8FAFC]">{m.quantity}</td>
-                        <td className="px-3 py-2 text-[#64748B] font-medium">{locationFlow(m)}</td>
-                        <td className="px-3 py-2 text-[#64748B] hidden sm:table-cell whitespace-nowrap">{formatDate(m.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <Link href="/movements" className="text-[11px] font-bold text-[#2563EB] hover:text-[#1D4ED8]">
+              View All Movements →
+            </Link>
           </div>
 
+          {movementsLoading ? (
+            <table className="w-full text-xs">
+              <tbody>{Array.from({ length: 6 }).map((_, i) => <SkelRow key={i} cols={6} />)}</tbody>
+            </table>
+          ) : movements.length === 0 ? (
+            <p className="px-4 py-8 text-center text-xs font-semibold text-[#64748B]">No stock movements recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#F1F5F9] bg-[#F8FAFC] dark:border-[#334155] dark:bg-[#0F172A]">
+                    <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-[#64748B]">Type</th>
+                    <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-[#64748B]">Product</th>
+                    <th className="px-4 py-2.5 text-right font-semibold uppercase tracking-wider text-[#64748B]">Quantity</th>
+                    <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-[#64748B]">Flow</th>
+                    <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-[#64748B]">Logged By</th>
+                    <th className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider text-[#64748B]">Date & Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F1F5F9] dark:divide-[#334155]">
+                  {movements.map((m) => (
+                    <tr key={m.id} className="hover:bg-[#EFF6FF]/40 dark:hover:bg-[#334155]/40 transition-colors">
+                      <td className="px-4 py-2.5">
+                        <Badge variant={movementBadgeVariant(m.movementType)} size="sm">
+                          {m.movementType.replace('_', ' ')}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <Link href={`/products/${m.product?.id}`} className="font-semibold text-[#0F172A] hover:text-[#2563EB] dark:text-[#F8FAFC]">
+                          {m.product?.name ?? '—'}
+                        </Link>
+                        {[m.product?.brand, m.product?.category?.name].filter(Boolean).length > 0 && (
+                          <span className="ml-1 text-[11px] text-[#64748B]">
+                            · {[m.product?.brand, m.product?.category?.name].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                        {m.quantity}
+                      </td>
+                      <td className="px-4 py-2.5 text-[#64748B] font-medium">
+                        {locationFlow(m)}
+                      </td>
+                      <td className="px-4 py-2.5 text-[#64748B] font-medium">
+                        {m.createdBy?.name ?? 'System'}
+                      </td>
+                      <td className="px-4 py-2.5 text-[#64748B] whitespace-nowrap">
+                        {formatDate(m.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
+
       </div>
     </AppShell>
   );
