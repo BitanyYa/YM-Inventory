@@ -302,6 +302,7 @@ export const inventoryService = {
     if (params.limit) q.append('limit', params.limit.toString());
     if (params.search?.trim()) q.append('search', params.search.trim());
     if (params.productId) q.append('productId', params.productId);
+    if (params.categoryId) q.append('categoryId', params.categoryId);
     if (params.productType) q.append('productType', params.productType);
     if (params.trackingType) q.append('trackingType', params.trackingType);
     if (params.movementType) q.append('movementType', params.movementType);

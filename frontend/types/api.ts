@@ -371,6 +371,7 @@ export interface QueryStockMovementParams {
   page?: number;
   limit?: number;
   productId?: string;
+  categoryId?: string;
   productType?: ProductType | '';
   trackingType?: TrackingType | '';
   movementType?: MovementType | '';

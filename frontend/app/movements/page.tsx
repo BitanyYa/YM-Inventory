@@ -2,8 +2,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { StockMovementItem, MovementType, Location, PaginationMeta } from '../../types/api';
+import { StockMovementItem, MovementType, Location, PaginationMeta, Category } from '../../types/api';
 import { inventoryService } from '../../services/inventory.service';
+import { categoryService } from '../../services/category.service';
 import { AppShell } from '../../components/layout/AppShell';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -121,6 +122,8 @@ export default function MovementsPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState('');
   const [movementType, setMovementType] = useState<MovementType | ''>('');
   const [locationFilter, setLocationFilter] = useState<Location | ''>('');
   const [datePreset, setDatePreset] = useState<DatePreset>('ALL');
@@ -129,6 +132,10 @@ export default function MovementsPage() {
   const [page, setPage] = useState(1);
 
   const [selectedMovementId, setSelectedMovementId] = useState<string | null>(null);
+
+  useEffect(() => {
+    categoryService.getCategories().then((cats) => setCategories(cats || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
@@ -142,6 +149,7 @@ export default function MovementsPage() {
         page,
         limit: 25,
         search: debouncedSearch.trim() || undefined,
+        categoryId: categoryId || undefined,
         movementType: movementType || undefined,
         location: locationFilter || undefined,
         startDate: startDate || undefined,
@@ -152,7 +160,7 @@ export default function MovementsPage() {
     } catch (e: unknown) {
       setError((e as { message?: string })?.message ?? 'Failed to load stock movements.');
     } finally { setIsLoading(false); }
-  }, [page, debouncedSearch, movementType, locationFilter, startDate, endDate]);
+  }, [page, debouncedSearch, categoryId, movementType, locationFilter, startDate, endDate]);
 
   useEffect(() => { fetchMovements(); }, [fetchMovements]);
 
@@ -179,9 +187,10 @@ export default function MovementsPage() {
     setPage(1);
   };
 
-  const hasFilters = !!(debouncedSearch || movementType || locationFilter || startDate || endDate);
+  const hasFilters = !!(debouncedSearch || categoryId || movementType || locationFilter || startDate || endDate);
   const resetFilters = () => {
     setSearch('');
+    setCategoryId('');
     setMovementType('');
     setLocationFilter('');
     setDatePreset('ALL');
@@ -228,6 +237,18 @@ export default function MovementsPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            <Select
+              size="sm"
+              className="w-36"
+              value={categoryId}
+              placeholder="All Categories"
+              options={[
+                { label: 'All Categories', value: '' },
+                ...categories.map((c) => ({ label: c.name, value: c.id })),
+              ]}
+              onChange={(val) => { setCategoryId(val); setPage(1); }}
+            />
+
             <Select
               size="sm"
               className="w-36"

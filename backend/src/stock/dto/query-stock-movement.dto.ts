@@ -38,6 +38,11 @@ export class QueryStockMovementDto {
   @IsOptional()
   productId?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by Category ID' })
+  @IsString()
+  @IsOptional()
+  categoryId?: string;
+
   @ApiPropertyOptional({
     enum: MovementType,
     description:

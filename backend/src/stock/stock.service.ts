@@ -1763,6 +1763,9 @@ export class StockService {
     }
 
     const productConditions: Prisma.ProductWhereInput = {};
+    if (query.categoryId) {
+      productConditions.categoryId = query.categoryId;
+    }
     if (query.productType) {
       productConditions.productType = query.productType;
     }
