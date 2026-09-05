@@ -316,7 +316,7 @@ export default function ProductsPage() {
 
         {/* filter bar */}
         <div className="flex flex-col gap-2 rounded-2xl border border-[#E2E8F0] bg-white p-2.5 shadow-xs dark:border-[#334155] dark:bg-[#1E293B] sm:flex-row sm:items-center">
-          <div className="relative flex-1">
+          <div className="relative min-w-[280px] sm:min-w-[360px] md:min-w-[400px] flex-1">
             <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
             <input
               type="text"

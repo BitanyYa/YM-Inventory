@@ -205,7 +205,7 @@ export default function UnitsPage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 
             {/* Search Input */}
-            <div className="relative flex-1">
+            <div className="relative min-w-[280px] sm:min-w-[360px] md:min-w-[400px] flex-1">
               <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
               <input
                 type="text"
