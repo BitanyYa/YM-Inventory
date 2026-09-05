@@ -237,8 +237,10 @@ export default function InventoryPage() {
 
   /* ── ui state ── */
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const reqIdRef = useRef(0);
 
   /* ── modal state ── */
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -278,7 +280,10 @@ export default function InventoryPage() {
 
   /* ── fetch inventory ── */
   const fetchInventory = useCallback(async () => {
-    setIsLoading(true); setError(null);
+    const currentReqId = ++reqIdRef.current;
+    if (products.length === 0) setIsLoading(true);
+    setIsFetching(true);
+    setError(null);
     try {
       const res = await inventoryService.getInventory({
         page, limit: 20,
@@ -290,12 +295,21 @@ export default function InventoryPage() {
         stockStatus: stockStatus || undefined,
         isActive: true,
       });
-      setProducts(res.data || []);
-      setMeta(res.meta);
+      if (currentReqId === reqIdRef.current) {
+        setProducts(res.data || []);
+        setMeta(res.meta);
+      }
     } catch (err: unknown) {
-      setError((err as { message?: string })?.message || 'Failed to load inventory.');
-    } finally { setIsLoading(false); }
-  }, [page, debouncedSearch, categoryId, locationTab, productType, trackingType, stockStatus]);
+      if (currentReqId === reqIdRef.current) {
+        setError((err as { message?: string })?.message || 'Failed to load inventory.');
+      }
+    } finally {
+      if (currentReqId === reqIdRef.current) {
+        setIsLoading(false);
+        setIsFetching(false);
+      }
+    }
+  }, [page, debouncedSearch, categoryId, locationTab, productType, trackingType, stockStatus, products.length]);
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
 
   /* ── fetch alerts ── */
@@ -478,8 +492,20 @@ export default function InventoryPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by product name or brand…"
-                  className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-8 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
                 />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearch(''); setDebouncedSearch(''); setPage(1); }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] text-xs font-bold px-1"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <Select
@@ -581,7 +607,7 @@ export default function InventoryPage() {
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
+                      <tbody className={`divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
                         {products.map((p) => (
                           <tr key={p.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
                             <td className="px-4 py-2.5">

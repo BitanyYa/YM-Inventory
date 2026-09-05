@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { StockMovementItem, MovementType, Location, PaginationMeta, Category } from '../../types/api';
 import { inventoryService } from '../../services/inventory.service';
@@ -118,7 +118,9 @@ export default function MovementsPage() {
   const [movements, setMovements] = useState<StockMovementItem[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: 25, total: 0, totalPages: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reqIdRef = useRef(0);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -143,7 +145,12 @@ export default function MovementsPage() {
   }, [search]);
 
   const fetchMovements = useCallback(async () => {
-    setIsLoading(true); setError(null);
+    const currentReqId = ++reqIdRef.current;
+    if (movements.length === 0) {
+      setIsLoading(true);
+    }
+    setIsFetching(true);
+    setError(null);
     try {
       const res = await inventoryService.getMovements({
         page,
@@ -155,11 +162,20 @@ export default function MovementsPage() {
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       });
-      setMovements(res.data ?? []);
-      setMeta(res.meta);
+      if (currentReqId === reqIdRef.current) {
+        setMovements(res.data ?? []);
+        setMeta(res.meta);
+      }
     } catch (e: unknown) {
-      setError((e as { message?: string })?.message ?? 'Failed to load stock movements.');
-    } finally { setIsLoading(false); }
+      if (currentReqId === reqIdRef.current) {
+        setError((e as { message?: string })?.message ?? 'Failed to load stock movements.');
+      }
+    } finally {
+      if (currentReqId === reqIdRef.current) {
+        setIsLoading(false);
+        setIsFetching(false);
+      }
+    }
   }, [page, debouncedSearch, categoryId, movementType, locationFilter, startDate, endDate]);
 
   useEffect(() => { fetchMovements(); }, [fetchMovements]);
@@ -233,8 +249,20 @@ export default function MovementsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by product name or brand…"
-              className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-8 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setDebouncedSearch(''); setPage(1); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] text-xs font-bold px-1"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <Select
@@ -336,7 +364,7 @@ export default function MovementsPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
+              <tbody className={`divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
                 {isLoading
                   ? Array.from({ length: 8 }).map((_, i) => <SkelRow key={i} />)
                   : movements.length === 0
@@ -388,7 +416,7 @@ export default function MovementsPage() {
           </div>
 
           {/* mobile view */}
-          <div className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden">
+          <div className={`divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="animate-pulse p-3 space-y-1.5">

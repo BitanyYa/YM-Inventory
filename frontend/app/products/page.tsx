@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import { productService } from '../../services/product.service';
@@ -167,8 +167,10 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const reqIdRef = useRef(0);
 
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
@@ -190,7 +192,12 @@ export default function ProductsPage() {
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 
   const fetchProducts = useCallback(async () => {
-    setIsLoading(true); setError(null);
+    const currentReqId = ++reqIdRef.current;
+    if (products.length === 0) {
+      setIsLoading(true);
+    }
+    setIsFetching(true);
+    setError(null);
     try {
       const isActive = isActiveFilter === 'true' ? true : isActiveFilter === 'false' ? false : undefined;
       const res = await productService.getProducts({
@@ -202,12 +209,21 @@ export default function ProductsPage() {
         isActive,
         stockStatus: stockStatusFilter || undefined,
       });
-      setProducts(res.data ?? []);
-      setMeta(res.meta);
+      if (currentReqId === reqIdRef.current) {
+        setProducts(res.data ?? []);
+        setMeta(res.meta);
+      }
     } catch (e: unknown) {
-      setError((e as { message?: string })?.message ?? 'Failed to load products.');
-    } finally { setIsLoading(false); }
-  }, [page, debouncedSearch, productType, trackingType, categoryId, isActiveFilter, stockStatusFilter]);
+      if (currentReqId === reqIdRef.current) {
+        setError((e as { message?: string })?.message ?? 'Failed to load products.');
+      }
+    } finally {
+      if (currentReqId === reqIdRef.current) {
+        setIsLoading(false);
+        setIsFetching(false);
+      }
+    }
+  }, [page, debouncedSearch, productType, trackingType, categoryId, isActiveFilter, stockStatusFilter, products.length]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
@@ -307,8 +323,20 @@ export default function ProductsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search products by name or brand…"
-              className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-8 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setDebouncedSearch(''); setPage(1); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] text-xs font-bold px-1"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap gap-1.5">
             {[
@@ -356,7 +384,7 @@ export default function ProductsPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
+              <tbody className={`divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
                 {isLoading
                   ? Array.from({ length: 8 }).map((_, i) => <SkelRow key={i} />)
                   : products.length === 0
@@ -410,7 +438,7 @@ export default function ProductsPage() {
           </div>
 
           {/* mobile */}
-          <div className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden">
+          <div className={`divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="animate-pulse p-3 space-y-1.5">

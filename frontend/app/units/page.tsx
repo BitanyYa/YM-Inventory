@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppShell } from '../../components/layout/AppShell';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -66,7 +66,9 @@ export default function UnitsPage() {
 
   /* ── UI state ── */
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reqIdRef = useRef(0);
 
   /* ── Modal state ── */
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
@@ -88,7 +90,11 @@ export default function UnitsPage() {
 
   /* ── Fetch units ── */
   const fetchUnits = useCallback(async () => {
-    setIsLoading(true);
+    const currentReqId = ++reqIdRef.current;
+    if (units.length === 0) {
+      setIsLoading(true);
+    }
+    setIsFetching(true);
     setError(null);
     try {
       const isImeiOrSerial = /^[a-zA-Z0-9]{6,}$/.test(debouncedSearch.trim());
@@ -120,19 +126,26 @@ export default function UnitsPage() {
         items = items.filter((u) => u.product?.category?.id === categoryIdFilter);
       }
 
-      setUnits(items);
-      setMeta({
-        page,
-        limit: 20,
-        total: items.length,
-        totalPages: Math.ceil(items.length / 20) || 1,
-      });
+      if (currentReqId === reqIdRef.current) {
+        setUnits(items);
+        setMeta({
+          page,
+          limit: 20,
+          total: items.length,
+          totalPages: Math.ceil(items.length / 20) || 1,
+        });
+      }
     } catch (err: unknown) {
-      setError((err as { message?: string })?.message ?? 'Failed to load serialized units.');
+      if (currentReqId === reqIdRef.current) {
+        setError((err as { message?: string })?.message ?? 'Failed to load serialized units.');
+      }
     } finally {
-      setIsLoading(false);
+      if (currentReqId === reqIdRef.current) {
+        setIsLoading(false);
+        setIsFetching(false);
+      }
     }
-  }, [page, debouncedSearch, statusFilter, locationFilter, productTypeFilter, categoryIdFilter]);
+  }, [page, debouncedSearch, statusFilter, locationFilter, productTypeFilter, categoryIdFilter, units.length]);
 
   useEffect(() => {
     fetchUnits();
@@ -199,8 +212,20 @@ export default function UnitsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search IMEI, serial, product or brand..."
-                className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-3 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-8 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setDebouncedSearch(''); setPage(1); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] text-xs font-bold px-1"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
             {/* Dropdown Filters */}
@@ -288,7 +313,7 @@ export default function UnitsPage() {
                 <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F1F5F9] dark:divide-[#334155]">
+            <tbody className={`divide-y divide-[#F1F5F9] dark:divide-[#334155] transition-opacity duration-150 ${isFetching && !isLoading ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => <SkelRow key={i} />)
               ) : units.length === 0 ? (
