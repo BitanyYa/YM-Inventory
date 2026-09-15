@@ -73,6 +73,7 @@ describe('BranchTransfersService Unit Tests', () => {
   const mockTx = {
     inventory: {
       findUnique: jest.fn(),
+      updateMany: jest.fn(),
       update: jest.fn(),
     },
     branchInventory: {
@@ -115,6 +116,7 @@ describe('BranchTransfersService Unit Tests', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTx.inventory.updateMany.mockResolvedValue({ count: 1 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -268,8 +270,12 @@ describe('BranchTransfersService Unit Tests', () => {
         mockAdminUser.id,
       );
 
-      expect(mockTx.inventory.update).toHaveBeenCalledWith({
-        where: { id: 'inv-shop-1' },
+      expect(mockTx.inventory.updateMany).toHaveBeenCalledWith({
+        where: {
+          productId: mockMattPrivacyProduct.id,
+          location: Location.SHOP,
+          quantity: { gte: 30 },
+        },
         data: { quantity: { decrement: 30 } },
       });
     });
@@ -432,7 +438,30 @@ describe('BranchTransfersService Unit Tests', () => {
         ),
       ).rejects.toThrow(BadRequestException);
 
-      expect(mockTx.inventory.update).not.toHaveBeenCalled();
+      expect(mockTx.inventory.updateMany).not.toHaveBeenCalled();
+      expect(mockTx.branchInventory.upsert).not.toHaveBeenCalled();
+      expect(mockTx.branchTransfer.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when atomic updateMany returns 0 affected rows (simulating concurrent overspending)', async () => {
+      mockPrismaService.branch.findUnique.mockResolvedValue(mockAtlasBranch);
+      mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockAdminUser);
+
+      mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 20 });
+      mockTx.inventory.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.transferToBranch(
+          {
+            branchId: mockAtlasBranch.id,
+            productId: mockMattPrivacyProduct.id,
+            quantity: 20,
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
       expect(mockTx.branchInventory.upsert).not.toHaveBeenCalled();
       expect(mockTx.branchTransfer.create).not.toHaveBeenCalled();
     });

@@ -110,13 +110,25 @@ export class BranchTransfersService implements OnModuleInit {
         );
       }
 
-      // 1. Decrease SHOP inventory
-      const updatedShopInventory = await tx.inventory.update({
-        where: { id: shopInventory.id },
+      // 1. Atomic conditional decrease of SHOP inventory
+      const updateResult = await tx.inventory.updateMany({
+        where: {
+          productId: product.id,
+          location: Location.SHOP,
+          quantity: { gte: dto.quantity },
+        },
         data: {
           quantity: { decrement: dto.quantity },
         },
       });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException(
+          `Insufficient Main Shop stock for product "${product.name}". Requested: ${dto.quantity}, Available: ${shopInventory?.quantity || 0}`,
+        );
+      }
+
+      const newShopQuantity = shopInventory.quantity - dto.quantity;
 
       // 2. Create or update BranchInventory
       const branchInventory = await tx.branchInventory.upsert({
@@ -168,7 +180,7 @@ export class BranchTransfersService implements OnModuleInit {
       return {
         transfer: branchTransfer,
         branchInventory,
-        shopInventoryQuantity: updatedShopInventory.quantity,
+        shopInventoryQuantity: newShopQuantity,
       };
     });
   }

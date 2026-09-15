@@ -75,12 +75,25 @@ export class SalespersonStockService {
         );
       }
 
-      const updatedShopInventory = await tx.inventory.update({
-        where: { id: shopInventory.id },
+      // 1. Atomic conditional decrease of SHOP inventory
+      const updateResult = await tx.inventory.updateMany({
+        where: {
+          productId: product.id,
+          location: Location.SHOP,
+          quantity: { gte: dto.quantity },
+        },
         data: {
           quantity: { decrement: dto.quantity },
         },
       });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException(
+          `Insufficient SHOP stock for product "${product.name}". Requested: ${dto.quantity}, Available: ${shopInventory?.quantity || 0}`,
+        );
+      }
+
+      const newShopQuantity = shopInventory.quantity - dto.quantity;
 
       const existingSalespersonStock = await tx.salespersonStock.findUnique({
         where: {
@@ -146,7 +159,7 @@ export class SalespersonStockService {
         },
         allocatedQuantity: dto.quantity,
         salespersonBalance: updatedSalespersonStock.quantity,
-        shopQuantity: updatedShopInventory.quantity,
+        shopQuantity: newShopQuantity,
         note: allocation.note,
         allocatedBy: {
           id: adminUser?.id || allocatedById,

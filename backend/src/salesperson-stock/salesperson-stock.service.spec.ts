@@ -15,6 +15,7 @@ describe('SalespersonStockService Unit Tests', () => {
   const mockTx = {
     inventory: {
       findUnique: jest.fn(),
+      updateMany: jest.fn(),
       update: jest.fn(),
     },
     salespersonStock: {
@@ -119,6 +120,7 @@ describe('SalespersonStockService Unit Tests', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTx.inventory.updateMany.mockResolvedValue({ count: 1 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -174,8 +176,12 @@ describe('SalespersonStockService Unit Tests', () => {
       expect(result.allocatedQuantity).toBe(20);
       expect(result.salespersonBalance).toBe(20);
       expect(result.shopQuantity).toBe(40);
-      expect(mockTx.inventory.update).toHaveBeenCalledWith({
-        where: { id: 'inv-shop-1' },
+      expect(mockTx.inventory.updateMany).toHaveBeenCalledWith({
+        where: {
+          productId: mockMattPrivacyProduct.id,
+          location: Location.SHOP,
+          quantity: { gte: 20 },
+        },
         data: { quantity: { decrement: 20 } },
       });
       expect(mockTx.salespersonStock.create).toHaveBeenCalledWith({
@@ -321,7 +327,32 @@ describe('SalespersonStockService Unit Tests', () => {
         ),
       ).rejects.toThrow(BadRequestException);
 
-      expect(mockTx.inventory.update).not.toHaveBeenCalled();
+      expect(mockTx.inventory.updateMany).not.toHaveBeenCalled();
+      expect(mockTx.salespersonStock.create).not.toHaveBeenCalled();
+      expect(mockTx.productAllocation.create).not.toHaveBeenCalled();
+      expect(mockTx.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when atomic updateMany returns 0 affected rows (simulating concurrent overspending)', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
+      mockPrismaService.user.findUnique
+        .mockResolvedValueOnce(mockSalespersonAbel)
+        .mockResolvedValueOnce(mockAdminUser);
+
+      mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 15 });
+      mockTx.inventory.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.allocateProduct(
+          {
+            productId: mockMattPrivacyProduct.id,
+            salespersonId: mockSalespersonAbel.id,
+            quantity: 15,
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
       expect(mockTx.salespersonStock.create).not.toHaveBeenCalled();
       expect(mockTx.productAllocation.create).not.toHaveBeenCalled();
       expect(mockTx.stockMovement.create).not.toHaveBeenCalled();
