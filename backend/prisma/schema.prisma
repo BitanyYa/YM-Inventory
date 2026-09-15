@@ -211,9 +211,9 @@ model SalespersonStock {
 model ProductAllocation {
   id            String   @id @default(uuid())
   salespersonId String
-  salesperson   User     @relation("AllocationSalesperson", fields: [salespersonId], references: [id], onDelete: Cascade)
+  salesperson   User     @relation("AllocationSalesperson", fields: [salespersonId], references: [id], onDelete: Restrict)
   productId     String
-  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity      Int
   note          String?
   allocatedById String
@@ -254,9 +254,9 @@ model BranchInventory {
 model BranchTransfer {
   id              String   @id @default(uuid())
   branchId        String
-  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
   productId       String
-  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity        Int
   note            String?
   transferredById String
