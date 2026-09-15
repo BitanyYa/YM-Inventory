@@ -4,11 +4,13 @@ import { Category } from '../types/api';
 export interface CreateCategoryRequest {
   name: string;
   description?: string;
+  allocationEnabled?: boolean;
 }
 
 export interface UpdateCategoryRequest {
   name?: string;
   description?: string;
+  allocationEnabled?: boolean;
 }
 
 let cachedCategories: Category[] | null = null;

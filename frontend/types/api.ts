@@ -6,7 +6,8 @@ export type MovementType =
   | 'RETURN'
   | 'DAMAGE'
   | 'LOSS'
-  | 'ADJUSTMENT';
+  | 'ADJUSTMENT'
+  | 'ALLOCATION';
 export type Location = 'WAREHOUSE' | 'SHOP';
 export type ProductType =
   | 'PHONE'
@@ -53,6 +54,7 @@ export interface Category {
   id: string;
   name: string;
   description?: string | null;
+  allocationEnabled?: boolean;
   productCount?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -156,6 +158,7 @@ export interface ProductItem {
   category?: {
     id: string;
     name: string;
+    allocationEnabled?: boolean;
   } | null;
   inventory: ProductInventorySummary;
   stockStatus: InventoryStockStatus;
@@ -519,5 +522,108 @@ export interface ReconcileStockResponse {
   difference: number;
   missingUnitsCount?: number;
   foundUnitsCount?: number;
+}
+
+/* ─── Product Allocation & Salesperson Stock Types ──────────────────────────── */
+
+export interface AllocateProductRequest {
+  productId: string;
+  salespersonId: string;
+  quantity: number;
+  note?: string;
+}
+
+export interface AllocateProductResponse {
+  id: string;
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+  };
+  salesperson: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  allocatedQuantity: number;
+  salespersonBalance: number;
+  shopQuantity: number;
+  note?: string | null;
+  allocatedBy: {
+    id: string;
+    name: string;
+  };
+  createdAt: string;
+}
+
+export interface SalespersonStockItem {
+  id: string;
+  salesperson: {
+    id: string;
+    name: string;
+    email: string;
+    role?: UserRole;
+  };
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+    sellingPrice?: number;
+    category?: {
+      id: string;
+      name: string;
+    } | null;
+  };
+  quantity: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductAllocationItem {
+  id: string;
+  salesperson: {
+    id: string;
+    name: string;
+    email: string;
+    role?: UserRole;
+  };
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+    category?: {
+      id: string;
+      name: string;
+    } | null;
+  };
+  quantity: number;
+  note?: string | null;
+  allocatedBy: {
+    id: string;
+    name: string;
+    email?: string;
+    role?: UserRole;
+  };
+  createdAt: string;
+}
+
+export interface QuerySalespersonStockParams {
+  salespersonId?: string;
+  productId?: string;
+}
+
+export interface QueryProductAllocationParams {
+  page?: number;
+  limit?: number;
+  salespersonId?: string;
+  productId?: string;
+}
+
+export interface ProductAllocationListResponse {
+  data: ProductAllocationItem[];
+  meta: PaginationMeta;
 }
 

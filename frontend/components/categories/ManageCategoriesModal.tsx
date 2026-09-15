@@ -170,6 +170,11 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
                         <Badge variant="neutral" size="sm">
                           {count} {count === 1 ? 'product' : 'products'}
                         </Badge>
+                        {cat.allocationEnabled && (
+                          <Badge variant="info" size="sm">
+                            Allocation enabled
+                          </Badge>
+                        )}
                       </div>
                       {cat.description && (
                         <p className="mt-0.5 text-[11px] text-[#86868B] truncate">

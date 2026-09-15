@@ -323,3 +323,92 @@ export const EyeOffIcon: React.FC<IconProps> = ({
     <line x1="2" y1="2" x2="22" y2="22" />
   </svg>
 );
+
+export const AllocationsIcon: React.FC<IconProps> = ({
+  size = 20,
+  className = '',
+  ...props
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <polyline points="16 11 18 13 22 9" />
+  </svg>
+);
+
+export const PlusIcon: React.FC<IconProps> = ({
+  size = 20,
+  className = '',
+  ...props
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+export const FilterIcon: React.FC<IconProps> = ({
+  size = 20,
+  className = '',
+  ...props
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+  </svg>
+);
+
+export const RefreshCwIcon: React.FC<IconProps> = ({
+  size = 20,
+  className = '',
+  ...props
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <polyline points="23 4 23 10 17 10" />
+    <polyline points="1 20 1 14 7 14" />
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+  </svg>
+);

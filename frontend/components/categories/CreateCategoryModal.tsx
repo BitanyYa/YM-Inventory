@@ -18,12 +18,13 @@ const PRESETS = ['Screens', 'ICs', 'Batteries', 'Charging Ports', 'Flex Cables',
 export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [allocationEnabled, setAllocationEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const reset = () => { setName(''); setDescription(''); setError(null); };
+  const reset = () => { setName(''); setDescription(''); setAllocationEnabled(false); setError(null); };
   const handleClose = () => { reset(); onClose(); };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,7 +33,11 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
     if (!name.trim()) { setError('Category name is required.'); return; }
     setIsLoading(true);
     try {
-      const payload: CreateCategoryRequest = { name: name.trim(), description: description.trim() || undefined };
+      const payload: CreateCategoryRequest = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        allocationEnabled,
+      };
       const created = await categoryService.createCategory(payload);
       reset(); onSuccess(created); onClose();
     } catch (err: unknown) {
@@ -89,6 +94,24 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
               className="w-full rounded-lg border border-[#D2D2D7] bg-white px-3 py-1.5 text-sm text-[#1D1D1F] placeholder:text-[#AEAEB2] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]"
               placeholder="Brief description…"
               value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+
+          <div className="flex items-start gap-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7] p-2.5 dark:border-[#38383A] dark:bg-[#2C2C2E]">
+            <input
+              id="create-allocation-enabled"
+              type="checkbox"
+              checked={allocationEnabled}
+              onChange={(e) => setAllocationEnabled(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-[#D2D2D7] text-[#0071E3] focus:ring-[#0071E3]"
+            />
+            <label htmlFor="create-allocation-enabled" className="cursor-pointer select-none">
+              <span className="block text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
+                Enable product allocation
+              </span>
+              <span className="block text-[11px] text-[#6E6E73] dark:text-[#86868B]">
+                Allow products in this category to be allocated to individual salespeople.
+              </span>
+            </label>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-1">
