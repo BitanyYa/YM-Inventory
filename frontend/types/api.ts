@@ -7,7 +7,8 @@ export type MovementType =
   | 'DAMAGE'
   | 'LOSS'
   | 'ADJUSTMENT'
-  | 'ALLOCATION';
+  | 'ALLOCATION'
+  | 'BRANCH_TRANSFER';
 export type Location = 'WAREHOUSE' | 'SHOP';
 export type ProductType =
   | 'PHONE'
@@ -626,4 +627,96 @@ export interface ProductAllocationListResponse {
   data: ProductAllocationItem[];
   meta: PaginationMeta;
 }
+
+/* ─── Branch & Branch Stock Transfer Types ──────────────────────────────────── */
+
+export interface Branch {
+  id: string;
+  name: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BranchInventoryItem {
+  id: string;
+  branchId: string;
+  productId: string;
+  quantity: number;
+  createdAt?: string;
+  updatedAt: string;
+  branch: {
+    id: string;
+    name: string;
+    isActive: boolean;
+  };
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+    trackingType: TrackingType;
+  };
+}
+
+export interface BranchTransferItem {
+  id: string;
+  branchId: string;
+  productId: string;
+  quantity: number;
+  note?: string | null;
+  transferredById: string;
+  createdAt: string;
+  branch: {
+    id: string;
+    name: string;
+  };
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+  };
+  transferredBy: {
+    id: string;
+    name: string;
+    email: string;
+    role?: UserRole;
+  };
+}
+
+export interface CreateBranchTransferRequest {
+  branchId: string;
+  productId: string;
+  quantity: number;
+  note?: string;
+}
+
+export interface CreateBranchTransferResponse {
+  transfer: BranchTransferItem;
+  branchInventory: BranchInventoryItem;
+  shopInventoryQuantity: number;
+}
+
+export interface QueryBranchInventoryParams {
+  branchId?: string;
+  productId?: string;
+}
+
+export interface QueryBranchTransferParams {
+  page?: number;
+  limit?: number;
+  branchId?: string;
+  productId?: string;
+}
+
+export interface BranchTransferListResponse {
+  data: BranchTransferItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  meta?: PaginationMeta;
+}
+
 
