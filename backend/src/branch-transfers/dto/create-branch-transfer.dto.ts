@@ -1,13 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateBranchTransferDto {
   @ApiProperty({
     example: 'branch-uuid-1234',
     description: 'ID of the target branch (Atlas, Aberus, or Garad)',
   })
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   branchId: string;
 

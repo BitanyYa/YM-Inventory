@@ -2,39 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { handleCorsOrigin } from './common/cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable Smart Configurable CORS
-  const corsOriginEnv = process.env.CORS_ORIGIN;
-
+  // Enable Secure Configurable CORS
   app.enableCors({
     origin: (requestOrigin, callback) => {
-      // Allow requests with no origin (like Postman, curl, server-to-server)
-      if (!requestOrigin) return callback(null, true);
-
-      if (!corsOriginEnv || corsOriginEnv.trim() === '*' || corsOriginEnv.trim() === '') {
-        return callback(null, true);
-      }
-
-      const allowedList = corsOriginEnv
-        .split(',')
-        .map((o) => o.trim().replace(/\/$/, ''))
-        .filter(Boolean);
-
-      const cleanOrigin = requestOrigin.replace(/\/$/, '');
-
-      if (
-        allowedList.includes('*') ||
-        allowedList.includes(cleanOrigin) ||
-        cleanOrigin.includes('localhost') ||
-        cleanOrigin.includes('vercel.app')
-      ) {
-        return callback(null, true);
-      }
-
-      return callback(null, true);
+      handleCorsOrigin(requestOrigin, process.env.CORS_ORIGIN, callback);
     },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
