@@ -12,6 +12,7 @@ import { StockModule } from './stock/stock.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { CommonModule } from './common/common.module';
+import { SalespersonStockModule } from './salesperson-stock/salesperson-stock.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CommonModule } from './common/common.module';
     DashboardModule,
     ReportsModule,
     CommonModule,
+    SalespersonStockModule,
   ],
   controllers: [AppController],
   providers: [AppService],

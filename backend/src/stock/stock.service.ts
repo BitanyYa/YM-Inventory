@@ -1605,6 +1605,7 @@ export class StockService {
       [MovementType.DAMAGE]: 0,
       [MovementType.LOSS]: 0,
       [MovementType.ADJUSTMENT]: 0,
+      [MovementType.ALLOCATION]: 0,
     };
 
     const quantityByMovementType: Record<MovementType, number> = {
@@ -1615,6 +1616,7 @@ export class StockService {
       [MovementType.DAMAGE]: 0,
       [MovementType.LOSS]: 0,
       [MovementType.ADJUSTMENT]: 0,
+      [MovementType.ALLOCATION]: 0,
     };
 
     const byLocation: Record<Location, number> = {

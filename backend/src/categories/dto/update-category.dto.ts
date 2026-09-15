@@ -18,4 +18,11 @@ export class UpdateCategoryDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Updated allocationEnabled status for this category',
+  })
+  @IsOptional()
+  allocationEnabled?: boolean;
 }

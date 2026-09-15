@@ -28,6 +28,7 @@ export class CategoriesService {
       data: {
         name: trimmedName,
         description: dto.description ? dto.description.trim() : null,
+        allocationEnabled: dto.allocationEnabled ?? false,
       },
       include: {
         _count: {
@@ -40,6 +41,7 @@ export class CategoriesService {
       id: category.id,
       name: category.name,
       description: category.description,
+      allocationEnabled: category.allocationEnabled,
       productCount: category._count.products,
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString(),
@@ -60,6 +62,7 @@ export class CategoriesService {
       id: c.id,
       name: c.name,
       description: c.description,
+      allocationEnabled: c.allocationEnabled,
       productCount: c._count.products,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
@@ -84,6 +87,7 @@ export class CategoriesService {
       id: category.id,
       name: category.name,
       description: category.description,
+      allocationEnabled: category.allocationEnabled,
       productCount: category._count.products,
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString(),
@@ -130,6 +134,10 @@ export class CategoriesService {
         : null;
     }
 
+    if (dto.allocationEnabled !== undefined) {
+      dataToUpdate.allocationEnabled = dto.allocationEnabled;
+    }
+
     const updated = await this.prisma.category.update({
       where: { id },
       data: dataToUpdate,
@@ -144,6 +152,7 @@ export class CategoriesService {
       id: updated.id,
       name: updated.name,
       description: updated.description,
+      allocationEnabled: updated.allocationEnabled,
       productCount: updated._count.products,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),

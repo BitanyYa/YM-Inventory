@@ -52,6 +52,7 @@ enum MovementType {
   DAMAGE
   LOSS
   ADJUSTMENT
+  ALLOCATION
 }
 
 model User {
@@ -62,37 +63,43 @@ model User {
   role           UserRole        @default(USER)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
-  stockMovements StockMovement[]
-  stockBatches   StockBatch[]
+  stockMovements      StockMovement[]
+  stockBatches        StockBatch[]
+  salespersonStocks   SalespersonStock[]  @relation("SalespersonStockSalesperson")
+  productAllocations  ProductAllocation[] @relation("AllocationSalesperson")
+  allocatedProducts   ProductAllocation[] @relation("AllocationAllocatedBy")
 }
 
 model Category {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  description String?
-  products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  name              String    @unique
+  description       String?
+  allocationEnabled Boolean   @default(false)
+  products          Product[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model Product {
-  id             String          @id @default(uuid())
-  name           String
-  brand          String
-  productType    ProductType
-  trackingType   TrackingType    @default(QUANTITY)
-  categoryId     String
-  category       Category        @relation(fields: [categoryId], references: [id])
-  sellingPrice   Decimal         @db.Decimal(10, 2)
-  minimumStock   Int             @default(0)
-  image          String?
-  description    String?
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  inventory      Inventory[]
-  productUnits   ProductUnit[]
-  stockMovements StockMovement[]
+  id                 String              @id @default(uuid())
+  name               String
+  brand              String
+  productType        ProductType
+  trackingType       TrackingType        @default(QUANTITY)
+  categoryId         String
+  category           Category            @relation(fields: [categoryId], references: [id])
+  sellingPrice       Decimal             @db.Decimal(10, 2)
+  minimumStock       Int                 @default(0)
+  image              String?
+  description        String?
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  inventory          Inventory[]
+  productUnits       ProductUnit[]
+  stockMovements     StockMovement[]
+  salespersonStocks  SalespersonStock[]
+  productAllocations ProductAllocation[]
 
   @@index([categoryId])
   @@index([productType])
@@ -180,4 +187,37 @@ model StockMovementUnit {
   @@unique([stockMovementId, productUnitId])
   @@index([stockMovementId])
   @@index([productUnitId])
+}
+
+model SalespersonStock {
+  id            String   @id @default(uuid())
+  salespersonId String
+  salesperson   User     @relation("SalespersonStockSalesperson", fields: [salespersonId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([salespersonId, productId])
+  @@index([salespersonId])
+  @@index([productId])
+}
+
+model ProductAllocation {
+  id            String   @id @default(uuid())
+  salespersonId String
+  salesperson   User     @relation("AllocationSalesperson", fields: [salespersonId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity      Int
+  note          String?
+  allocatedById String
+  allocatedBy   User     @relation("AllocationAllocatedBy", fields: [allocatedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([salespersonId])
+  @@index([productId])
+  @@index([allocatedById])
+  @@index([createdAt])
 }

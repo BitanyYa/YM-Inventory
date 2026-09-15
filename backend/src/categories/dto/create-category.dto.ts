@@ -17,4 +17,12 @@ export class CreateCategoryDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Enable product allocation for this category (e.g. Screen Protectors)',
+  })
+  @IsOptional()
+  allocationEnabled?: boolean;
 }
