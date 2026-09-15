@@ -13,6 +13,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { CommonModule } from './common/common.module';
 import { SalespersonStockModule } from './salesperson-stock/salesperson-stock.module';
+import { BranchTransfersModule } from './branch-transfers/branch-transfers.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SalespersonStockModule } from './salesperson-stock/salesperson-stock.mo
     ReportsModule,
     CommonModule,
     SalespersonStockModule,
+    BranchTransfersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

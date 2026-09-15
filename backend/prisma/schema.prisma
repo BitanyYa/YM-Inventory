@@ -53,6 +53,7 @@ enum MovementType {
   LOSS
   ADJUSTMENT
   ALLOCATION
+  BRANCH_TRANSFER
 }
 
 model User {
@@ -68,6 +69,7 @@ model User {
   salespersonStocks   SalespersonStock[]  @relation("SalespersonStockSalesperson")
   productAllocations  ProductAllocation[] @relation("AllocationSalesperson")
   allocatedProducts   ProductAllocation[] @relation("AllocationAllocatedBy")
+  branchTransfers     BranchTransfer[]    @relation("BranchTransferTransferredBy")
 }
 
 model Category {
@@ -100,6 +102,8 @@ model Product {
   stockMovements     StockMovement[]
   salespersonStocks  SalespersonStock[]
   productAllocations ProductAllocation[]
+  branchInventories  BranchInventory[]
+  branchTransfers    BranchTransfer[]
 
   @@index([categoryId])
   @@index([productType])
@@ -219,5 +223,48 @@ model ProductAllocation {
   @@index([salespersonId])
   @@index([productId])
   @@index([allocatedById])
+  @@index([createdAt])
+}
+
+model Branch {
+  id                String            @id @default(uuid())
+  name              String            @unique
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  branchInventories BranchInventory[]
+  branchTransfers   BranchTransfer[]
+}
+
+model BranchInventory {
+  id        String   @id @default(uuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, productId])
+  @@index([branchId])
+  @@index([productId])
+}
+
+model BranchTransfer {
+  id              String   @id @default(uuid())
+  branchId        String
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity        Int
+  note            String?
+  transferredById String
+  transferredBy   User     @relation("BranchTransferTransferredBy", fields: [transferredById], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@index([branchId])
+  @@index([productId])
+  @@index([transferredById])
   @@index([createdAt])
 }
