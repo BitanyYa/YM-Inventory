@@ -1,4 +1,4 @@
-# 📦 YM Inventory — Precision Logistics & Inventory Management System
+# 📦 YM Inventory - Precision Logistics & Inventory Management System
 
 YM Inventory is a state-of-the-art, multi-location inventory and logistics management application built for electronics, mobile device retailers, and repair businesses. It provides real-time stock tracking across **Warehouse** and **Shop** locations, dual tracking modes (**Quantity** vs. **Serialized / IMEI**), comprehensive movement audit logging, physical audit reconciliation, and strict role-based access control (RBAC).
 
