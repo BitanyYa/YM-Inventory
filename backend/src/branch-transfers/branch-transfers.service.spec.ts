@@ -79,13 +79,22 @@ describe('BranchTransfersService Unit Tests', () => {
     branchInventory: {
       upsert: jest.fn(),
       findUnique: jest.fn(),
+      updateMany: jest.fn(),
     },
     branchTransfer: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    branchTransferReversal: {
       create: jest.fn(),
     },
     stockMovement: {
       create: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
+    $executeRaw: jest.fn(),
   };
 
   const mockPrismaService = {
@@ -665,6 +674,283 @@ describe('BranchTransfersService Unit Tests', () => {
           toLocation: null,
         }),
       });
+    });
+  });
+
+  describe('18. Branch Transfer Reversals', () => {
+    const mockBranchTransfer = {
+      id: 'bt-101',
+      branchId: mockAtlasBranch.id,
+      productId: mockMattPrivacyProduct.id,
+      quantity: 20,
+      reversedQuantity: 0,
+      branch: mockAtlasBranch,
+      product: mockMattPrivacyProduct,
+      transferredById: mockAdminUser.id,
+      transferredBy: mockAdminUser,
+    };
+
+    beforeEach(() => {
+      mockTx.branchTransfer.findUnique.mockReset();
+      mockTx.$executeRaw.mockResolvedValue(1);
+      mockTx.branchInventory.updateMany.mockResolvedValue({ count: 1 });
+      mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 40 });
+      mockTx.inventory.update.mockResolvedValue({ id: 'inv-shop-1', quantity: 45 });
+      mockTx.branchTransferReversal.create.mockResolvedValue({
+        id: 'btr-201',
+        branchTransferId: 'bt-101',
+        branchId: mockAtlasBranch.id,
+        productId: mockMattPrivacyProduct.id,
+        quantity: 5,
+        reason: 'Excessive stock sent to Atlas',
+        reversedById: mockAdminUser.id,
+        createdAt: new Date('2026-09-16T12:00:00Z'),
+      });
+      mockTx.stockMovement.create.mockResolvedValue({ id: 'mov-401' });
+      mockTx.user.findUnique.mockResolvedValue(mockAdminUser);
+    });
+
+    it('should perform a successful partial branch transfer reversal (5 of 20)', async () => {
+      mockTx.branchTransfer.findUnique
+        .mockResolvedValueOnce(mockBranchTransfer)
+        .mockResolvedValueOnce({ ...mockBranchTransfer, reversedQuantity: 5 });
+
+      const result = await service.reverseBranchTransfer(
+        {
+          branchTransferId: 'bt-101',
+          quantity: 5,
+          reason: 'Excessive stock sent to Atlas',
+        },
+        mockAdminUser.id,
+      );
+
+      expect(result.id).toBe('btr-201');
+      expect(result.reversedQuantity).toBe(5);
+      expect(result.originalTransferQuantity).toBe(20);
+      expect(result.totalReversedQuantity).toBe(5);
+      expect(result.remainingReversibleQuantity).toBe(15);
+
+      expect(mockTx.$executeRaw).toHaveBeenCalled();
+      expect(mockTx.branchInventory.updateMany).toHaveBeenCalledWith({
+        where: {
+          branchId: mockAtlasBranch.id,
+          productId: mockMattPrivacyProduct.id,
+          quantity: { gte: 5 },
+        },
+        data: { quantity: { decrement: 5 } },
+      });
+      expect(mockTx.inventory.update).toHaveBeenCalledWith({
+        where: {
+          productId_location: {
+            productId: mockMattPrivacyProduct.id,
+            location: Location.SHOP,
+          },
+        },
+        data: { quantity: { increment: 5 } },
+      });
+      expect(mockTx.branchTransferReversal.create).toHaveBeenCalledWith({
+        data: {
+          branchTransferId: 'bt-101',
+          branchId: mockAtlasBranch.id,
+          productId: mockMattPrivacyProduct.id,
+          quantity: 5,
+          reason: 'Excessive stock sent to Atlas',
+          reversedById: mockAdminUser.id,
+        },
+      });
+      expect(mockTx.stockMovement.create).toHaveBeenCalledWith({
+        data: {
+          productId: mockMattPrivacyProduct.id,
+          movementType: MovementType.BRANCH_TRANSFER_REVERSAL,
+          fromLocation: null,
+          toLocation: Location.SHOP,
+          quantity: 5,
+          createdById: mockAdminUser.id,
+          note: 'Branch Transfer Reversal: Excessive stock sent to Atlas',
+        },
+      });
+    });
+
+    it('should perform a successful full branch transfer reversal (20 of 20)', async () => {
+      mockTx.branchTransfer.findUnique
+        .mockResolvedValueOnce(mockBranchTransfer)
+        .mockResolvedValueOnce({ ...mockBranchTransfer, reversedQuantity: 20 });
+
+      const result = await service.reverseBranchTransfer(
+        {
+          branchTransferId: 'bt-101',
+          quantity: 20,
+          reason: 'Full transfer reversal',
+        },
+        mockAdminUser.id,
+      );
+
+      expect(result.reversedQuantity).toBe(20);
+      expect(result.totalReversedQuantity).toBe(20);
+      expect(result.remainingReversibleQuantity).toBe(0);
+    });
+
+    it('should support multiple partial reversals until remaining is 0', async () => {
+      const partiallyReversedBt = { ...mockBranchTransfer, reversedQuantity: 5 };
+      mockTx.branchTransfer.findUnique
+        .mockResolvedValueOnce(partiallyReversedBt)
+        .mockResolvedValueOnce({ ...mockBranchTransfer, reversedQuantity: 15 });
+
+      const result = await service.reverseBranchTransfer(
+        {
+          branchTransferId: 'bt-101',
+          quantity: 10,
+          reason: 'Second partial transfer reversal',
+        },
+        mockAdminUser.id,
+      );
+
+      expect(result.totalReversedQuantity).toBe(15);
+      expect(result.remainingReversibleQuantity).toBe(5);
+    });
+
+    it('should allow reversal from an INACTIVE branch if sufficient stock exists', async () => {
+      const inactiveBranchTransfer = {
+        ...mockBranchTransfer,
+        branch: mockInactiveBranch,
+      };
+      mockTx.branchTransfer.findUnique
+        .mockResolvedValueOnce(inactiveBranchTransfer)
+        .mockResolvedValueOnce({ ...inactiveBranchTransfer, reversedQuantity: 5 });
+
+      const result = await service.reverseBranchTransfer(
+        {
+          branchTransferId: 'bt-101',
+          quantity: 5,
+          reason: 'Recovering stock from closed branch',
+        },
+        mockAdminUser.id,
+      );
+
+      expect(result.branch.id).toBe(mockInactiveBranch.id);
+      expect(result.reversedQuantity).toBe(5);
+    });
+
+    it('should reject reversing more than remaining unreversed quantity', async () => {
+      const partiallyReversedBt = { ...mockBranchTransfer, reversedQuantity: 15 };
+      mockTx.branchTransfer.findUnique.mockResolvedValue(partiallyReversedBt);
+
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'bt-101',
+            quantity: 10,
+            reason: 'Excessive transfer reversal',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject reversal if transfer is already fully reversed', async () => {
+      const fullyReversedBt = { ...mockBranchTransfer, reversedQuantity: 20 };
+      mockTx.branchTransfer.findUnique.mockResolvedValue(fullyReversedBt);
+
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'bt-101',
+            quantity: 1,
+            reason: 'Try reversing fully reversed transfer',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject reversal if branch has insufficient stock to prevent negative balance', async () => {
+      mockTx.branchTransfer.findUnique.mockResolvedValue(mockBranchTransfer);
+      mockTx.branchInventory.updateMany.mockResolvedValue({ count: 0 });
+      mockTx.branchInventory.findUnique.mockResolvedValue({ quantity: 2 });
+
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'bt-101',
+            quantity: 10,
+            reason: 'Branch holds only 2 items',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject reversal if atomic executeRaw returns 0 (concurrent over-reversal protection)', async () => {
+      mockTx.branchTransfer.findUnique.mockResolvedValue(mockBranchTransfer);
+      mockTx.$executeRaw.mockResolvedValue(0);
+
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'bt-101',
+            quantity: 5,
+            reason: 'Concurrent race test',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject if SHOP inventory record does not exist', async () => {
+      mockTx.branchTransfer.findUnique.mockResolvedValue(mockBranchTransfer);
+      mockTx.inventory.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'bt-101',
+            quantity: 5,
+            reason: 'Missing shop inventory',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException if branchTransferId does not exist', async () => {
+      mockTx.branchTransfer.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'nonexistent-id',
+            quantity: 5,
+            reason: 'Nonexistent transfer test',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if reason is missing or shorter than 3 chars', async () => {
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'bt-101',
+            quantity: 5,
+            reason: '  ',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if quantity is non-positive or non-integer', async () => {
+      await expect(
+        service.reverseBranchTransfer(
+          {
+            branchTransferId: 'bt-101',
+            quantity: -5,
+            reason: 'Negative quantity test',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

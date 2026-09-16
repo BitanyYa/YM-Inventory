@@ -20,15 +20,24 @@ describe('SalespersonStockService Unit Tests', () => {
     },
     salespersonStock: {
       findUnique: jest.fn(),
+      updateMany: jest.fn(),
       update: jest.fn(),
       create: jest.fn(),
     },
     productAllocation: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+    },
+    productAllocationReversal: {
       create: jest.fn(),
     },
     stockMovement: {
       create: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
+    $executeRaw: jest.fn(),
   };
 
   const mockPrismaService = {
@@ -516,6 +525,272 @@ describe('SalespersonStockService Unit Tests', () => {
       };
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN]);
       expect(() => rolesGuard.canActivate(mockContext)).toThrow(ForbiddenException);
+    });
+  });
+
+  describe('12. Salesperson Allocation Reversal', () => {
+    const mockAllocation = {
+      id: 'alloc-101',
+      salespersonId: mockSalespersonAbel.id,
+      productId: mockMattPrivacyProduct.id,
+      quantity: 20,
+      reversedQuantity: 0,
+      salesperson: mockSalespersonAbel,
+      product: mockMattPrivacyProduct,
+      allocatedById: mockAdminUser.id,
+      allocatedBy: mockAdminUser,
+    };
+
+    beforeEach(() => {
+      mockTx.productAllocation.findUnique.mockReset();
+      mockTx.$executeRaw.mockResolvedValue(1);
+      mockTx.salespersonStock.updateMany.mockResolvedValue({ count: 1 });
+      mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 40 });
+      mockTx.inventory.update.mockResolvedValue({ id: 'inv-shop-1', quantity: 45 });
+      mockTx.productAllocationReversal.create.mockResolvedValue({
+        id: 'rev-201',
+        allocationId: 'alloc-101',
+        salespersonId: mockSalespersonAbel.id,
+        productId: mockMattPrivacyProduct.id,
+        quantity: 5,
+        reason: 'Correction of over-allocation',
+        reversedById: mockAdminUser.id,
+        createdAt: new Date('2026-09-16T12:00:00Z'),
+      });
+      mockTx.stockMovement.create.mockResolvedValue({ id: 'mov-301' });
+      mockTx.user.findUnique.mockResolvedValue(mockAdminUser);
+    });
+
+    it('should perform a successful partial reversal (5 of 20)', async () => {
+      mockTx.productAllocation.findUnique
+        .mockResolvedValueOnce(mockAllocation)
+        .mockResolvedValueOnce({ ...mockAllocation, reversedQuantity: 5 });
+
+      const result = await service.reverseAllocation(
+        {
+          allocationId: 'alloc-101',
+          quantity: 5,
+          reason: 'Correction of over-allocation',
+        },
+        mockAdminUser.id,
+      );
+
+      expect(result.id).toBe('rev-201');
+      expect(result.reversedQuantity).toBe(5);
+      expect(result.originalAllocationQuantity).toBe(20);
+      expect(result.totalReversedQuantity).toBe(5);
+      expect(result.remainingReversibleQuantity).toBe(15);
+
+      expect(mockTx.$executeRaw).toHaveBeenCalled();
+      expect(mockTx.salespersonStock.updateMany).toHaveBeenCalledWith({
+        where: {
+          salespersonId: mockSalespersonAbel.id,
+          productId: mockMattPrivacyProduct.id,
+          quantity: { gte: 5 },
+        },
+        data: { quantity: { decrement: 5 } },
+      });
+      expect(mockTx.inventory.update).toHaveBeenCalledWith({
+        where: {
+          productId_location: {
+            productId: mockMattPrivacyProduct.id,
+            location: Location.SHOP,
+          },
+        },
+        data: { quantity: { increment: 5 } },
+      });
+      expect(mockTx.productAllocationReversal.create).toHaveBeenCalledWith({
+        data: {
+          allocationId: 'alloc-101',
+          salespersonId: mockSalespersonAbel.id,
+          productId: mockMattPrivacyProduct.id,
+          quantity: 5,
+          reason: 'Correction of over-allocation',
+          reversedById: mockAdminUser.id,
+        },
+      });
+      expect(mockTx.stockMovement.create).toHaveBeenCalledWith({
+        data: {
+          productId: mockMattPrivacyProduct.id,
+          movementType: MovementType.ALLOCATION_REVERSAL,
+          fromLocation: null,
+          toLocation: Location.SHOP,
+          quantity: 5,
+          createdById: mockAdminUser.id,
+          note: 'Allocation Reversal: Correction of over-allocation',
+        },
+      });
+    });
+
+    it('should perform a successful full reversal (20 of 20)', async () => {
+      mockTx.productAllocation.findUnique
+        .mockResolvedValueOnce(mockAllocation)
+        .mockResolvedValueOnce({ ...mockAllocation, reversedQuantity: 20 });
+      mockTx.productAllocationReversal.create.mockResolvedValue({
+        id: 'rev-202',
+        allocationId: 'alloc-101',
+        salespersonId: mockSalespersonAbel.id,
+        productId: mockMattPrivacyProduct.id,
+        quantity: 20,
+        reason: 'Full allocation reversal',
+        reversedById: mockAdminUser.id,
+        createdAt: new Date('2026-09-16T12:00:00Z'),
+      });
+
+      const result = await service.reverseAllocation(
+        {
+          allocationId: 'alloc-101',
+          quantity: 20,
+          reason: 'Full allocation reversal',
+        },
+        mockAdminUser.id,
+      );
+
+      expect(result.reversedQuantity).toBe(20);
+      expect(result.totalReversedQuantity).toBe(20);
+      expect(result.remainingReversibleQuantity).toBe(0);
+    });
+
+    it('should support multiple partial reversals until remaining is 0', async () => {
+      // First reversal of 5 already done, now reversing 10 more
+      const partiallyReversedAlloc = { ...mockAllocation, reversedQuantity: 5 };
+      mockTx.productAllocation.findUnique
+        .mockResolvedValueOnce(partiallyReversedAlloc)
+        .mockResolvedValueOnce({ ...mockAllocation, reversedQuantity: 15 });
+
+      const result = await service.reverseAllocation(
+        {
+          allocationId: 'alloc-101',
+          quantity: 10,
+          reason: 'Second partial reversal',
+        },
+        mockAdminUser.id,
+      );
+
+      expect(result.totalReversedQuantity).toBe(15);
+      expect(result.remainingReversibleQuantity).toBe(5);
+    });
+
+    it('should reject reversing more than remaining unreversed quantity', async () => {
+      const partiallyReversedAlloc = { ...mockAllocation, reversedQuantity: 15 };
+      mockTx.productAllocation.findUnique.mockResolvedValue(partiallyReversedAlloc);
+
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'alloc-101',
+            quantity: 10,
+            reason: 'Excessive reversal',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject reversal if allocation is already fully reversed', async () => {
+      const fullyReversedAlloc = { ...mockAllocation, reversedQuantity: 20 };
+      mockTx.productAllocation.findUnique.mockResolvedValue(fullyReversedAlloc);
+
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'alloc-101',
+            quantity: 1,
+            reason: 'Try reversing fully reversed',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject reversal if salesperson has insufficient stock to prevent negative balance', async () => {
+      mockTx.productAllocation.findUnique.mockResolvedValue(mockAllocation);
+      mockTx.salespersonStock.updateMany.mockResolvedValue({ count: 0 });
+      mockTx.salespersonStock.findUnique.mockResolvedValue({ quantity: 2 });
+
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'alloc-101',
+            quantity: 10,
+            reason: 'Salesperson holds only 2 items',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject reversal if atomic executeRaw returns 0 (concurrent over-reversal protection)', async () => {
+      mockTx.productAllocation.findUnique.mockResolvedValue(mockAllocation);
+      mockTx.$executeRaw.mockResolvedValue(0);
+
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'alloc-101',
+            quantity: 5,
+            reason: 'Concurrent race test',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject if SHOP inventory record does not exist', async () => {
+      mockTx.productAllocation.findUnique.mockResolvedValue(mockAllocation);
+      mockTx.inventory.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'alloc-101',
+            quantity: 5,
+            reason: 'Missing shop inventory',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException if allocation ID does not exist', async () => {
+      mockTx.productAllocation.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'nonexistent-id',
+            quantity: 5,
+            reason: 'Nonexistent allocation test',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if reason is missing or shorter than 3 chars', async () => {
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'alloc-101',
+            quantity: 5,
+            reason: '  ',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if quantity is non-positive or non-integer', async () => {
+      await expect(
+        service.reverseAllocation(
+          {
+            allocationId: 'alloc-101',
+            quantity: -5,
+            reason: 'Negative quantity test',
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

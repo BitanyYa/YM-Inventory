@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateBranchTransferDto } from './dto/create-branch-transfer.dto';
 import { QueryBranchInventoryDto } from './dto/query-branch-inventory.dto';
 import { QueryBranchTransferDto } from './dto/query-branch-transfer.dto';
+import { ReverseBranchTransferDto } from './dto/reverse-branch-transfer.dto';
 
 const INITIAL_BRANCHES = ['Atlas', 'Aberus', 'Garad'];
 
@@ -186,6 +187,186 @@ export class BranchTransfersService implements OnModuleInit {
   }
 
   /**
+   * Reverse stock from a Branch back to Main Shop (Location.SHOP).
+   * Transactional and atomic operation.
+   */
+  async reverseBranchTransfer(
+    dto: ReverseBranchTransferDto,
+    adminUserId: string,
+  ) {
+    const { branchTransferId, quantity, reason } = dto;
+
+    if (!quantity || quantity <= 0 || !Number.isInteger(quantity)) {
+      throw new BadRequestException('Quantity must be a positive integer');
+    }
+
+    if (!reason || reason.trim().length < 3) {
+      throw new BadRequestException(
+        'Reason must be a non-empty string with at least 3 characters',
+      );
+    }
+
+    const trimmedReason = reason.trim();
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Fetch original BranchTransfer
+      const branchTransfer = await tx.branchTransfer.findUnique({
+        where: { id: branchTransferId },
+        include: {
+          branch: { select: { id: true, name: true, isActive: true } },
+          product: { select: { id: true, name: true, brand: true, productType: true } },
+          transferredBy: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      if (!branchTransfer) {
+        throw new NotFoundException(
+          `Branch transfer with ID "${branchTransferId}" not found`,
+        );
+      }
+
+      if (!branchTransfer.product) {
+        throw new NotFoundException(
+          `Product associated with branch transfer ID "${branchTransferId}" not found`,
+        );
+      }
+
+      const remainingReversible = branchTransfer.quantity - branchTransfer.reversedQuantity;
+      if (remainingReversible <= 0) {
+        throw new BadRequestException(
+          `Branch transfer "${branchTransferId}" is already fully reversed`,
+        );
+      }
+
+      if (quantity > remainingReversible) {
+        throw new BadRequestException(
+          `Requested reversal quantity (${quantity}) exceeds remaining reversible quantity (${remainingReversible}) for branch transfer "${branchTransferId}"`,
+        );
+      }
+
+      // 2. Concurrency-safe atomic reserve of reversal amount on BranchTransfer
+      const transferUpdateCount = await tx.$executeRaw`
+        UPDATE "BranchTransfer"
+        SET "reversedQuantity" = "reversedQuantity" + ${quantity}
+        WHERE "id" = ${branchTransferId} AND ("quantity" - "reversedQuantity") >= ${quantity}
+      `;
+
+      if (transferUpdateCount === 0) {
+        throw new BadRequestException(
+          `Requested reversal quantity (${quantity}) exceeds remaining reversible quantity for branch transfer "${branchTransferId}"`,
+        );
+      }
+
+      // 3. Atomically reduce BranchInventory
+      // Note: Inactive branch can still be reversed if it holds sufficient stock.
+      const branchInventoryUpdate = await tx.branchInventory.updateMany({
+        where: {
+          branchId: branchTransfer.branchId,
+          productId: branchTransfer.productId,
+          quantity: { gte: quantity },
+        },
+        data: {
+          quantity: { decrement: quantity },
+        },
+      });
+
+      if (branchInventoryUpdate.count === 0) {
+        const currentBranchStock = await tx.branchInventory.findUnique({
+          where: {
+            branchId_productId: {
+              branchId: branchTransfer.branchId,
+              productId: branchTransfer.productId,
+            },
+          },
+        });
+        throw new BadRequestException(
+          `Branch "${branchTransfer.branch.name}" does not currently have enough stock to reverse this amount. Requested: ${quantity}, Available: ${currentBranchStock?.quantity || 0}`,
+        );
+      }
+
+      // 4. Restore Main Shop Inventory
+      const shopInventory = await tx.inventory.findUnique({
+        where: {
+          productId_location: {
+            productId: branchTransfer.productId,
+            location: Location.SHOP,
+          },
+        },
+      });
+
+      if (!shopInventory) {
+        throw new BadRequestException(
+          `Main Shop inventory for product "${branchTransfer.product.name}" does not exist. Reversal failed.`,
+        );
+      }
+
+      await tx.inventory.update({
+        where: {
+          productId_location: {
+            productId: branchTransfer.productId,
+            location: Location.SHOP,
+          },
+        },
+        data: {
+          quantity: { increment: quantity },
+        },
+      });
+
+      // 5. Create BranchTransferReversal record
+      const reversal = await tx.branchTransferReversal.create({
+        data: {
+          branchTransferId: branchTransfer.id,
+          branchId: branchTransfer.branchId,
+          productId: branchTransfer.productId,
+          quantity,
+          reason: trimmedReason,
+          reversedById: adminUserId,
+        },
+      });
+
+      // 6. Create StockMovement entry
+      await tx.stockMovement.create({
+        data: {
+          productId: branchTransfer.productId,
+          movementType: MovementType.BRANCH_TRANSFER_REVERSAL,
+          fromLocation: null,
+          toLocation: Location.SHOP,
+          quantity,
+          createdById: adminUserId,
+          note: `Branch Transfer Reversal: ${trimmedReason}`,
+        },
+      });
+
+      // 7. Admin user info
+      const adminUser = await tx.user.findUnique({
+        where: { id: adminUserId },
+        select: { id: true, name: true, email: true },
+      });
+
+      const totalReversedQuantity = branchTransfer.reversedQuantity + quantity;
+      const remainingReversibleQuantity = branchTransfer.quantity - totalReversedQuantity;
+
+      return {
+        id: reversal.id,
+        branchTransferId: branchTransfer.id,
+        branch: branchTransfer.branch,
+        product: branchTransfer.product,
+        reversedQuantity: quantity,
+        originalTransferQuantity: branchTransfer.quantity,
+        totalReversedQuantity,
+        remainingReversibleQuantity,
+        reason: reversal.reason,
+        reversedBy: {
+          id: adminUser?.id || adminUserId,
+          name: adminUser?.name || 'Admin',
+          email: adminUser?.email || '',
+        },
+        createdAt: reversal.createdAt.toISOString(),
+      };
+    });
+  }
+
+  /**
    * Retrieves current stock across branches with optional filtering.
    */
   async getBranchInventory(query: QueryBranchInventoryDto) {
@@ -248,7 +429,7 @@ export class BranchTransfersService implements OnModuleInit {
         orderBy: { createdAt: 'desc' },
         include: {
           branch: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, isActive: true },
           },
           product: {
             select: { id: true, name: true, brand: true, productType: true },
@@ -256,13 +437,32 @@ export class BranchTransfersService implements OnModuleInit {
           transferredBy: {
             select: { id: true, name: true, email: true, role: true },
           },
+          reversals: {
+            select: {
+              id: true,
+              quantity: true,
+              reason: true,
+              createdAt: true,
+              reversedBy: { select: { id: true, name: true, email: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       }),
       this.prisma.branchTransfer.count({ where }),
     ]);
 
     return {
-      data,
+      data: data.map((t) => ({
+        ...t,
+        reversedQuantity: t.reversedQuantity || 0,
+        remainingQuantity: t.quantity - (t.reversedQuantity || 0),
+        reversals: (t.reversals || []).map((r) => ({
+          ...r,
+          createdAt: r.createdAt.toISOString(),
+        })),
+        createdAt: t.createdAt.toISOString(),
+      })),
       total,
       page,
       limit,

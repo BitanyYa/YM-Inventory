@@ -54,31 +54,36 @@ enum MovementType {
   ADJUSTMENT
   ALLOCATION
   BRANCH_TRANSFER
+  ALLOCATION_REVERSAL
+  BRANCH_TRANSFER_REVERSAL
 }
 
 model User {
-  id                String              @id @default(uuid())
-  name              String
-  email             String              @unique
-  password          String
-  role              UserRole            @default(USER)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  stockMovements    StockMovement[]
-  stockBatches      StockBatch[]
-  allocatedProducts ProductAllocation[] @relation("AllocationAllocatedBy")
-  branchTransfers   BranchTransfer[]    @relation("BranchTransferTransferredBy")
+  id                         String                      @id @default(uuid())
+  name                       String
+  email                      String                      @unique
+  password                   String
+  role                       UserRole                    @default(USER)
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  stockMovements             StockMovement[]
+  stockBatches               StockBatch[]
+  allocatedProducts          ProductAllocation[]         @relation("AllocationAllocatedBy")
+  branchTransfers            BranchTransfer[]            @relation("BranchTransferTransferredBy")
+  productAllocationReversals ProductAllocationReversal[]
+  branchTransferReversals    BranchTransferReversal[]
 }
 
 model Salesperson {
-  id                 String              @id @default(uuid())
-  name               String
-  phone              String?
-  isActive           Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  salespersonStocks  SalespersonStock[]
-  productAllocations ProductAllocation[]
+  id                         String                      @id @default(uuid())
+  name                       String
+  phone                      String?
+  isActive                   Boolean                     @default(true)
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  salespersonStocks          SalespersonStock[]
+  productAllocations         ProductAllocation[]
+  productAllocationReversals ProductAllocationReversal[]
 
   @@index([name])
   @@index([isActive])
@@ -95,27 +100,29 @@ model Category {
 }
 
 model Product {
-  id                 String              @id @default(uuid())
-  name               String
-  brand              String
-  productType        ProductType
-  trackingType       TrackingType        @default(QUANTITY)
-  categoryId         String
-  category           Category            @relation(fields: [categoryId], references: [id])
-  sellingPrice       Decimal             @db.Decimal(10, 2)
-  minimumStock       Int                 @default(0)
-  image              String?
-  description        String?
-  isActive           Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  inventory          Inventory[]
-  productUnits       ProductUnit[]
-  stockMovements     StockMovement[]
-  salespersonStocks  SalespersonStock[]
-  productAllocations ProductAllocation[]
-  branchInventories  BranchInventory[]
-  branchTransfers    BranchTransfer[]
+  id                         String                      @id @default(uuid())
+  name                       String
+  brand                      String
+  productType                ProductType
+  trackingType               TrackingType                @default(QUANTITY)
+  categoryId                 String
+  category                   Category                    @relation(fields: [categoryId], references: [id])
+  sellingPrice               Decimal                     @db.Decimal(10, 2)
+  minimumStock               Int                         @default(0)
+  image                      String?
+  description                String?
+  isActive                   Boolean                     @default(true)
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  inventory                  Inventory[]
+  productUnits               ProductUnit[]
+  stockMovements             StockMovement[]
+  salespersonStocks          SalespersonStock[]
+  productAllocations         ProductAllocation[]
+  branchInventories          BranchInventory[]
+  branchTransfers            BranchTransfer[]
+  productAllocationReversals ProductAllocationReversal[]
+  branchTransferReversals    BranchTransferReversal[]
 
   @@index([categoryId])
   @@index([productType])
@@ -221,16 +228,18 @@ model SalespersonStock {
 }
 
 model ProductAllocation {
-  id            String      @id @default(uuid())
-  salespersonId String
-  salesperson   Salesperson @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
-  productId     String
-  product       Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantity      Int
-  note          String?
-  allocatedById String
-  allocatedBy   User        @relation("AllocationAllocatedBy", fields: [allocatedById], references: [id])
-  createdAt     DateTime    @default(now())
+  id               String                      @id @default(uuid())
+  salespersonId    String
+  salesperson      Salesperson                 @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  productId        String
+  product          Product                     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity         Int
+  reversedQuantity Int                         @default(0)
+  note             String?
+  allocatedById    String
+  allocatedBy      User                        @relation("AllocationAllocatedBy", fields: [allocatedById], references: [id])
+  createdAt        DateTime                    @default(now())
+  reversals        ProductAllocationReversal[]
 
   @@index([salespersonId])
   @@index([productId])
@@ -238,14 +247,35 @@ model ProductAllocation {
   @@index([createdAt])
 }
 
+model ProductAllocationReversal {
+  id            String            @id @default(uuid())
+  allocationId  String
+  allocation    ProductAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  salespersonId String
+  salesperson   Salesperson       @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
+  productId     String
+  product       Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity      Int
+  reason        String
+  reversedById  String
+  reversedBy    User              @relation(fields: [reversedById], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([allocationId])
+  @@index([salespersonId])
+  @@index([productId])
+  @@index([createdAt])
+}
+
 model Branch {
-  id                String            @id @default(uuid())
-  name              String            @unique
-  isActive          Boolean           @default(true)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  branchInventories BranchInventory[]
-  branchTransfers   BranchTransfer[]
+  id                      String                   @id @default(uuid())
+  name                    String                   @unique
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  branchInventories       BranchInventory[]
+  branchTransfers         BranchTransfer[]
+  branchTransferReversals BranchTransferReversal[]
 }
 
 model BranchInventory {
@@ -264,19 +294,41 @@ model BranchInventory {
 }
 
 model BranchTransfer {
-  id              String   @id @default(uuid())
+  id              String                   @id @default(uuid())
   branchId        String
-  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  branch          Branch                   @relation(fields: [branchId], references: [id], onDelete: Restrict)
   productId       String
-  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product         Product                  @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity        Int
+  reversedQuantity Int                     @default(0)
   note            String?
   transferredById String
-  transferredBy   User     @relation("BranchTransferTransferredBy", fields: [transferredById], references: [id])
-  createdAt       DateTime @default(now())
+  transferredBy   User                     @relation("BranchTransferTransferredBy", fields: [transferredById], references: [id])
+  createdAt       DateTime                 @default(now())
+  reversals       BranchTransferReversal[]
 
   @@index([branchId])
   @@index([productId])
   @@index([transferredById])
+  @@index([createdAt])
+}
+
+model BranchTransferReversal {
+  id               String         @id @default(uuid())
+  branchTransferId String
+  branchTransfer   BranchTransfer @relation(fields: [branchTransferId], references: [id], onDelete: Restrict)
+  branchId         String
+  branch           Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  productId        String
+  product          Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity         Int
+  reason           String
+  reversedById     String
+  reversedBy       User           @relation(fields: [reversedById], references: [id])
+  createdAt        DateTime       @default(now())
+
+  @@index([branchTransferId])
+  @@index([branchId])
+  @@index([productId])
   @@index([createdAt])
 }

@@ -23,6 +23,7 @@ import { SalespersonStockService } from './salesperson-stock.service';
 import { AllocateProductDto } from './dto/allocate-product.dto';
 import { QuerySalespersonStockDto } from './dto/query-salesperson-stock.dto';
 import { QueryProductAllocationDto } from './dto/query-product-allocation.dto';
+import { ReverseAllocationDto } from './dto/reverse-allocation.dto';
 
 @ApiTags('salesperson-stock')
 @ApiBearerAuth()
@@ -57,6 +58,31 @@ export class SalespersonStockController {
     @GetUser('id') userId: string,
   ) {
     return this.salespersonStockService.allocateProduct(dto, userId);
+  }
+
+  @Post('allocations/reverse')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Reverse a salesperson stock allocation (ADMIN only)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Product allocation reversed successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation error (over-reversal, insufficient salesperson stock, invalid quantity/reason, etc.)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Allocation record not found',
+  })
+  async reverseAllocation(
+    @Body() dto: ReverseAllocationDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.salespersonStockService.reverseAllocation(dto, userId);
   }
 
   @Get()

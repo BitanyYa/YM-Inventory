@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AllocateProductDto } from './dto/allocate-product.dto';
 import { QuerySalespersonStockDto } from './dto/query-salesperson-stock.dto';
 import { QueryProductAllocationDto } from './dto/query-product-allocation.dto';
+import { ReverseAllocationDto } from './dto/reverse-allocation.dto';
 
 @Injectable()
 export class SalespersonStockService {
@@ -176,6 +177,176 @@ export class SalespersonStockService {
     });
   }
 
+  async reverseAllocation(dto: ReverseAllocationDto, adminUserId: string) {
+    const { allocationId, quantity, reason } = dto;
+
+    if (!quantity || quantity <= 0 || !Number.isInteger(quantity)) {
+      throw new BadRequestException('Quantity must be a positive integer');
+    }
+
+    if (!reason || reason.trim().length < 3) {
+      throw new BadRequestException('Reason must be a non-empty string with at least 3 characters');
+    }
+
+    const trimmedReason = reason.trim();
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Fetch original allocation
+      const allocation = await tx.productAllocation.findUnique({
+        where: { id: allocationId },
+        include: {
+          salesperson: { select: { id: true, name: true, phone: true } },
+          product: { select: { id: true, name: true, brand: true, productType: true } },
+          allocatedBy: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      if (!allocation) {
+        throw new NotFoundException(
+          `Product allocation with ID "${allocationId}" not found`,
+        );
+      }
+
+      if (!allocation.product) {
+        throw new NotFoundException(
+          `Product associated with allocation ID "${allocationId}" not found`,
+        );
+      }
+
+      const remainingReversible = allocation.quantity - allocation.reversedQuantity;
+      if (remainingReversible <= 0) {
+        throw new BadRequestException(
+          `Allocation "${allocationId}" is already fully reversed`,
+        );
+      }
+
+      if (quantity > remainingReversible) {
+        throw new BadRequestException(
+          `Requested reversal quantity (${quantity}) exceeds remaining reversible quantity (${remainingReversible}) for allocation "${allocationId}"`,
+        );
+      }
+
+      // 2. Concurrency-safe atomic reserve of reversal amount on ProductAllocation
+      const allocUpdateCount = await tx.$executeRaw`
+        UPDATE "ProductAllocation"
+        SET "reversedQuantity" = "reversedQuantity" + ${quantity}
+        WHERE "id" = ${allocationId} AND ("quantity" - "reversedQuantity") >= ${quantity}
+      `;
+
+      if (allocUpdateCount === 0) {
+        throw new BadRequestException(
+          `Requested reversal quantity (${quantity}) exceeds remaining reversible quantity for allocation "${allocationId}"`,
+        );
+      }
+
+      // 3. Atomically reduce SalespersonStock
+      const stockUpdateResult = await tx.salespersonStock.updateMany({
+        where: {
+          salespersonId: allocation.salespersonId,
+          productId: allocation.productId,
+          quantity: { gte: quantity },
+        },
+        data: {
+          quantity: { decrement: quantity },
+        },
+      });
+
+      if (stockUpdateResult.count === 0) {
+        const currentStock = await tx.salespersonStock.findUnique({
+          where: {
+            salespersonId_productId: {
+              salespersonId: allocation.salespersonId,
+              productId: allocation.productId,
+            },
+          },
+        });
+        throw new BadRequestException(
+          `Salesperson "${allocation.salesperson.name}" does not currently have enough stock to reverse this amount. Requested: ${quantity}, Available: ${currentStock?.quantity || 0}`,
+        );
+      }
+
+      // 4. Restore Main Shop Inventory
+      const shopInventory = await tx.inventory.findUnique({
+        where: {
+          productId_location: {
+            productId: allocation.productId,
+            location: Location.SHOP,
+          },
+        },
+      });
+
+      if (!shopInventory) {
+        throw new BadRequestException(
+          `Main Shop inventory for product "${allocation.product.name}" does not exist. Reversal failed.`,
+        );
+      }
+
+      await tx.inventory.update({
+        where: {
+          productId_location: {
+            productId: allocation.productId,
+            location: Location.SHOP,
+          },
+        },
+        data: {
+          quantity: { increment: quantity },
+        },
+      });
+
+      // 5. Create ProductAllocationReversal record
+      const reversal = await tx.productAllocationReversal.create({
+        data: {
+          allocationId: allocation.id,
+          salespersonId: allocation.salespersonId,
+          productId: allocation.productId,
+          quantity,
+          reason: trimmedReason,
+          reversedById: adminUserId,
+        },
+      });
+
+      // 6. Create StockMovement entry
+      await tx.stockMovement.create({
+        data: {
+          productId: allocation.productId,
+          movementType: MovementType.ALLOCATION_REVERSAL,
+          fromLocation: null,
+          toLocation: Location.SHOP,
+          quantity,
+          createdById: adminUserId,
+          note: `Allocation Reversal: ${trimmedReason}`,
+        },
+      });
+
+      // 7. Admin user info
+      const adminUser = await tx.user.findUnique({
+        where: { id: adminUserId },
+        select: { id: true, name: true, email: true },
+      });
+
+      const totalReversedQuantity = allocation.reversedQuantity + quantity;
+      const remainingReversibleQuantity = allocation.quantity - totalReversedQuantity;
+
+      return {
+        id: reversal.id,
+        allocationId: allocation.id,
+        salesperson: allocation.salesperson,
+        product: allocation.product,
+        reversedQuantity: quantity,
+        originalAllocationQuantity: allocation.quantity,
+        totalReversedQuantity,
+        remainingReversibleQuantity,
+        reason: reversal.reason,
+        reversedBy: {
+          id: adminUser?.id || adminUserId,
+          name: adminUser?.name || 'Admin',
+          email: adminUser?.email || '',
+        },
+        createdAt: reversal.createdAt.toISOString(),
+      };
+    });
+  }
+
   async findAllStock(query: QuerySalespersonStockDto) {
     const where: Prisma.SalespersonStockWhereInput = {};
 
@@ -305,6 +476,16 @@ export class SalespersonStockService {
           allocatedBy: {
             select: { id: true, name: true, email: true, role: true },
           },
+          reversals: {
+            select: {
+              id: true,
+              quantity: true,
+              reason: true,
+              createdAt: true,
+              reversedBy: { select: { id: true, name: true, email: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       }),
       this.prisma.productAllocation.count({ where }),
@@ -318,8 +499,14 @@ export class SalespersonStockService {
         salesperson: a.salesperson,
         product: a.product,
         quantity: a.quantity,
+        reversedQuantity: a.reversedQuantity || 0,
+        remainingQuantity: a.quantity - (a.reversedQuantity || 0),
         note: a.note,
         allocatedBy: a.allocatedBy,
+        reversals: (a.reversals || []).map((r) => ({
+          ...r,
+          createdAt: r.createdAt.toISOString(),
+        })),
         createdAt: a.createdAt.toISOString(),
       })),
       meta: {

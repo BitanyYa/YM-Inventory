@@ -1607,6 +1607,8 @@ export class StockService {
       [MovementType.ADJUSTMENT]: 0,
       [MovementType.ALLOCATION]: 0,
       [MovementType.BRANCH_TRANSFER]: 0,
+      [MovementType.ALLOCATION_REVERSAL]: 0,
+      [MovementType.BRANCH_TRANSFER_REVERSAL]: 0,
     };
 
     const quantityByMovementType: Record<MovementType, number> = {
@@ -1619,6 +1621,8 @@ export class StockService {
       [MovementType.ADJUSTMENT]: 0,
       [MovementType.ALLOCATION]: 0,
       [MovementType.BRANCH_TRANSFER]: 0,
+      [MovementType.ALLOCATION_REVERSAL]: 0,
+      [MovementType.BRANCH_TRANSFER_REVERSAL]: 0,
     };
 
     const byLocation: Record<Location, number> = {

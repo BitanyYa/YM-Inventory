@@ -21,6 +21,7 @@ import { BranchTransfersService } from './branch-transfers.service';
 import { CreateBranchTransferDto } from './dto/create-branch-transfer.dto';
 import { QueryBranchInventoryDto } from './dto/query-branch-inventory.dto';
 import { QueryBranchTransferDto } from './dto/query-branch-transfer.dto';
+import { ReverseBranchTransferDto } from './dto/reverse-branch-transfer.dto';
 
 @ApiTags('branch-transfers')
 @ApiBearerAuth()
@@ -54,6 +55,31 @@ export class BranchTransfersController {
     @GetUser('id') userId: string,
   ) {
     return this.branchTransfersService.transferToBranch(dto, userId);
+  }
+
+  @Post('transfers/reverse')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Reverse a branch transfer (ADMIN only)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Branch transfer reversed successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation error (over-reversal, insufficient branch stock, invalid quantity/reason, etc.)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Branch transfer record not found',
+  })
+  async reverseBranchTransfer(
+    @Body() dto: ReverseBranchTransferDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.branchTransfersService.reverseBranchTransfer(dto, userId);
   }
 
   @Get('branches')
