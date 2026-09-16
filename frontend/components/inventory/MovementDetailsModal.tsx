@@ -19,6 +19,8 @@ function movementBadgeVariant(type: MovementType): 'info' | 'neutral' | 'success
   switch (type) {
     case 'STOCK_IN': return 'info';
     case 'TRANSFER': return 'neutral';
+    case 'ALLOCATION': return 'info';
+    case 'BRANCH_TRANSFER': return 'info';
     case 'SALE': return 'success';
     case 'RETURN': return 'warning';
     case 'DAMAGE':
@@ -31,6 +33,8 @@ function movementBadgeVariant(type: MovementType): 'info' | 'neutral' | 'success
 function locationFlowDisplay(m: StockMovementItem): string {
   if (m.movementType === 'STOCK_IN') return `→ ${m.toLocation ?? 'WAREHOUSE'}`;
   if (m.movementType === 'TRANSFER') return `${m.fromLocation ?? 'WAREHOUSE'} → ${m.toLocation ?? 'SHOP'}`;
+  if (m.movementType === 'ALLOCATION') return `${m.fromLocation ?? 'SHOP'} → SALESPERSON`;
+  if (m.movementType === 'BRANCH_TRANSFER') return `${m.fromLocation ?? 'SHOP'} → BRANCH`;
   if (m.movementType === 'SALE') return `${m.fromLocation ?? 'SHOP'} → SOLD`;
   if (m.movementType === 'RETURN') return `SOLD → ${m.toLocation ?? 'WAREHOUSE'}`;
   if (m.movementType === 'DAMAGE' || m.movementType === 'LOSS') return `${m.fromLocation ?? '—'} → —`;

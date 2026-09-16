@@ -17,6 +17,8 @@ function movementBadgeVariant(type: MovementType): 'info' | 'neutral' | 'success
   switch (type) {
     case 'STOCK_IN': return 'info';
     case 'TRANSFER': return 'neutral';
+    case 'ALLOCATION': return 'info';
+    case 'BRANCH_TRANSFER': return 'info';
     case 'SALE': return 'success';
     case 'RETURN': return 'warning';
     case 'DAMAGE':
@@ -29,6 +31,8 @@ function movementBadgeVariant(type: MovementType): 'info' | 'neutral' | 'success
 function locationFlow(m: StockMovementItem): string {
   if (m.movementType === 'STOCK_IN') return `→ ${m.toLocation ?? 'WAREHOUSE'}`;
   if (m.movementType === 'TRANSFER') return `${m.fromLocation ?? 'WAREHOUSE'} → ${m.toLocation ?? 'SHOP'}`;
+  if (m.movementType === 'ALLOCATION') return `${m.fromLocation ?? 'SHOP'} → SALESPERSON`;
+  if (m.movementType === 'BRANCH_TRANSFER') return `${m.fromLocation ?? 'SHOP'} → BRANCH`;
   if (m.movementType === 'SALE') return `${m.fromLocation ?? 'SHOP'} → SOLD`;
   if (m.movementType === 'RETURN') return `SOLD → ${m.toLocation ?? 'WAREHOUSE'}`;
   if (m.movementType === 'DAMAGE' || m.movementType === 'LOSS') return `${m.fromLocation ?? '—'} → —`;
@@ -48,17 +52,17 @@ function adjustmentDirectionLabel(m: StockMovementItem): string | null {
   return null;
 }
 
-type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'LAST_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM';
+const formatDateStr = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'SINGLE_DATE' | 'THIS_WEEK' | 'LAST_WEEK' | 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM';
 
 function getDateRangeFromPreset(preset: DatePreset): { startDate?: string; endDate?: string } {
   const now = new Date();
-
-  const formatDateStr = (d: Date): string => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   switch (preset) {
     case 'TODAY': {
@@ -97,6 +101,7 @@ function getDateRangeFromPreset(preset: DatePreset): { startDate?: string; endDa
       return { startDate: formatDateStr(startOfLastMonth), endDate: formatDateStr(endOfLastMonth) };
     }
     case 'ALL':
+    case 'SINGLE_DATE':
     default:
       return { startDate: undefined, endDate: undefined };
   }
@@ -183,7 +188,12 @@ export default function MovementsPage() {
   const handlePresetChange = (val: string) => {
     const preset = val as DatePreset;
     setDatePreset(preset);
-    if (preset !== 'CUSTOM') {
+    if (preset === 'SINGLE_DATE') {
+      const defaultDate = startDate || formatDateStr(new Date());
+      setStartDate(defaultDate);
+      setEndDate(defaultDate);
+      setPage(1);
+    } else if (preset !== 'CUSTOM') {
       const { startDate: s, endDate: e } = getDateRangeFromPreset(preset);
       setStartDate(s || '');
       setEndDate(e || '');
@@ -193,13 +203,28 @@ export default function MovementsPage() {
 
   const handleStartDateChange = (val: string) => {
     setStartDate(val);
-    setDatePreset('CUSTOM');
+    if (val && val === endDate) {
+      setDatePreset('SINGLE_DATE');
+    } else {
+      setDatePreset('CUSTOM');
+    }
     setPage(1);
   };
 
   const handleEndDateChange = (val: string) => {
     setEndDate(val);
-    setDatePreset('CUSTOM');
+    if (val && val === startDate) {
+      setDatePreset('SINGLE_DATE');
+    } else {
+      setDatePreset('CUSTOM');
+    }
+    setPage(1);
+  };
+
+  const handleSingleDateChange = (val: string) => {
+    setStartDate(val);
+    setEndDate(val);
+    setDatePreset('SINGLE_DATE');
     setPage(1);
   };
 
@@ -286,6 +311,8 @@ export default function MovementsPage() {
                 { label: 'All Operations', value: '' },
                 { label: 'Stock In', value: 'STOCK_IN' },
                 { label: 'Transfer', value: 'TRANSFER' },
+                { label: 'Allocation', value: 'ALLOCATION' },
+                { label: 'Branch Transfer', value: 'BRANCH_TRANSFER' },
                 { label: 'Sale', value: 'SALE' },
                 { label: 'Return', value: 'RETURN' },
                 { label: 'Damage', value: 'DAMAGE' },
@@ -317,6 +344,7 @@ export default function MovementsPage() {
                 { label: 'All Time', value: 'ALL' },
                 { label: 'Today', value: 'TODAY' },
                 { label: 'Yesterday', value: 'YESTERDAY' },
+                { label: 'Single Date', value: 'SINGLE_DATE' },
                 { label: 'This Week', value: 'THIS_WEEK' },
                 { label: 'Last Week', value: 'LAST_WEEK' },
                 { label: 'This Month', value: 'THIS_MONTH' },
@@ -326,25 +354,39 @@ export default function MovementsPage() {
               onChange={handlePresetChange}
             />
 
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-[#86868B]">From:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => handleStartDateChange(e.target.value)}
-                className={inputCls}
-              />
-            </div>
+            {datePreset === 'SINGLE_DATE' ? (
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-[#86868B]">Date:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleSingleDateChange(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-[#86868B]">From:</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
 
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-[#86868B]">To:</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => handleEndDateChange(e.target.value)}
-                className={inputCls}
-              />
-            </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-[#86868B]">To:</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => handleEndDateChange(e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+              </>
+            )}
 
             {hasFilters && (
               <button onClick={resetFilters} className="rounded-xl border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]">Clear</button>
