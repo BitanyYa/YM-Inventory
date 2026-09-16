@@ -5,6 +5,8 @@ import {
   ProductAllocationListResponse,
   QueryProductAllocationParams,
   QuerySalespersonStockParams,
+  ReverseAllocationRequest,
+  ReverseAllocationResponse,
   Salesperson,
   SalespersonStockItem,
 } from '../types/api';
@@ -12,6 +14,13 @@ import {
 export const salespersonStockService = {
   async allocateProduct(data: AllocateProductRequest): Promise<AllocateProductResponse> {
     return apiClient<AllocateProductResponse>('/salesperson-stock/allocate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async reverseAllocation(data: ReverseAllocationRequest): Promise<ReverseAllocationResponse> {
+    return apiClient<ReverseAllocationResponse>('/salesperson-stock/allocations/reverse', {
       method: 'POST',
       body: JSON.stringify(data),
     });

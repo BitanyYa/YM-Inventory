@@ -609,6 +609,18 @@ export interface SalespersonStockItem {
   updatedAt: string;
 }
 
+export interface AllocationReversalItem {
+  id: string;
+  quantity: number;
+  reason: string;
+  reversedBy: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  createdAt: string;
+}
+
 export interface ProductAllocationItem {
   id: string;
   salesperson: {
@@ -630,12 +642,48 @@ export interface ProductAllocationItem {
     } | null;
   };
   quantity: number;
+  reversedQuantity?: number;
+  remainingQuantity?: number;
   note?: string | null;
   allocatedBy: {
     id: string;
     name: string;
     email?: string;
     role?: UserRole;
+  };
+  reversals?: AllocationReversalItem[];
+  createdAt: string;
+}
+
+export interface ReverseAllocationRequest {
+  allocationId: string;
+  quantity: number;
+  reason: string;
+}
+
+export interface ReverseAllocationResponse {
+  id: string;
+  allocationId: string;
+  salesperson: {
+    id: string;
+    name: string;
+    phone?: string | null;
+  };
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+  };
+  reversedQuantity: number;
+  originalAllocationQuantity: number;
+  totalReversedQuantity: number;
+  remainingReversibleQuantity: number;
+  reason: string;
+  reversedBy: {
+    id: string;
+    name: string;
+    email?: string;
   };
   createdAt: string;
 }
