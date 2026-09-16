@@ -38,6 +38,10 @@ describe('SalespersonStockService Unit Tests', () => {
     user: {
       findUnique: jest.fn(),
     },
+    salesperson: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+    },
     inventory: {
       findUnique: jest.fn(),
     },
@@ -60,17 +64,17 @@ describe('SalespersonStockService Unit Tests', () => {
   };
 
   const mockSalespersonAbel = {
-    id: 'user-abel-id',
+    id: 'salesperson-abel-id',
     name: 'Abel',
-    email: 'abel@example.com',
-    role: UserRole.USER,
+    phone: '0911000000',
+    isActive: true,
   };
 
   const mockSalespersonHana = {
-    id: 'user-hana-id',
+    id: 'salesperson-hana-id',
     name: 'Hana',
-    email: 'hana@example.com',
-    role: UserRole.USER,
+    phone: '0922000000',
+    isActive: true,
   };
 
   const mockScreenProtectorCategory = {
@@ -138,9 +142,8 @@ describe('SalespersonStockService Unit Tests', () => {
   describe('1. Successful allocation', () => {
     it('should allocate 20 items from SHOP (60 -> 40) to Abel (0 -> 20)', async () => {
       mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(mockSalespersonAbel)
-        .mockResolvedValueOnce(mockAdminUser);
+      mockPrismaService.salesperson.findUnique.mockResolvedValue(mockSalespersonAbel);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockAdminUser);
 
       mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 60 });
       mockTx.inventory.update.mockResolvedValue({ id: 'inv-shop-1', quantity: 40 });
@@ -217,9 +220,8 @@ describe('SalespersonStockService Unit Tests', () => {
   describe('2. Repeated allocation', () => {
     it('should increment Abel balance from 20 -> 35 when allocating an additional 15 items', async () => {
       mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(mockSalespersonAbel)
-        .mockResolvedValueOnce(mockAdminUser);
+      mockPrismaService.salesperson.findUnique.mockResolvedValue(mockSalespersonAbel);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockAdminUser);
 
       mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 40 });
       mockTx.inventory.update.mockResolvedValue({ id: 'inv-shop-1', quantity: 25 });
@@ -269,9 +271,8 @@ describe('SalespersonStockService Unit Tests', () => {
   describe('3. Different salesperson', () => {
     it('should maintain separate balances for Abel (20) and Hana (10)', async () => {
       mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(mockSalespersonHana)
-        .mockResolvedValueOnce(mockAdminUser);
+      mockPrismaService.salesperson.findUnique.mockResolvedValue(mockSalespersonHana);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockAdminUser);
 
       mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 25 });
       mockTx.inventory.update.mockResolvedValue({ id: 'inv-shop-1', quantity: 15 });
@@ -310,9 +311,8 @@ describe('SalespersonStockService Unit Tests', () => {
   describe('4. Insufficient shop stock', () => {
     it('should reject allocation when SHOP stock (10) < requested (15)', async () => {
       mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(mockSalespersonAbel)
-        .mockResolvedValueOnce(mockAdminUser);
+      mockPrismaService.salesperson.findUnique.mockResolvedValue(mockSalespersonAbel);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockAdminUser);
 
       mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 10 });
 
@@ -335,9 +335,8 @@ describe('SalespersonStockService Unit Tests', () => {
 
     it('should throw BadRequestException when atomic updateMany returns 0 affected rows (simulating concurrent overspending)', async () => {
       mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(mockSalespersonAbel)
-        .mockResolvedValueOnce(mockAdminUser);
+      mockPrismaService.salesperson.findUnique.mockResolvedValue(mockSalespersonAbel);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockAdminUser);
 
       mockTx.inventory.findUnique.mockResolvedValue({ id: 'inv-shop-1', quantity: 15 });
       mockTx.inventory.updateMany.mockResolvedValueOnce({ count: 0 });
@@ -454,13 +453,13 @@ describe('SalespersonStockService Unit Tests', () => {
   describe('9. Nonexistent salesperson', () => {
     it('should throw NotFoundException if salespersonId is invalid', async () => {
       mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
-      mockPrismaService.user.findUnique.mockResolvedValueOnce(null);
+      mockPrismaService.salesperson.findUnique.mockResolvedValue(null);
 
       await expect(
         service.allocateProduct(
           {
             productId: mockMattPrivacyProduct.id,
-            salespersonId: 'invalid-user-id',
+            salespersonId: 'invalid-salesperson-id',
             quantity: 5,
           },
           mockAdminUser.id,
@@ -469,7 +468,28 @@ describe('SalespersonStockService Unit Tests', () => {
     });
   });
 
-  describe('10. Authorization & RolesGuard', () => {
+  describe('10. Inactive salesperson', () => {
+    it('should throw BadRequestException if salesperson is inactive', async () => {
+      mockPrismaService.product.findUnique.mockResolvedValue(mockMattPrivacyProduct);
+      mockPrismaService.salesperson.findUnique.mockResolvedValue({
+        ...mockSalespersonAbel,
+        isActive: false,
+      });
+
+      await expect(
+        service.allocateProduct(
+          {
+            productId: mockMattPrivacyProduct.id,
+            salespersonId: mockSalespersonAbel.id,
+            quantity: 5,
+          },
+          mockAdminUser.id,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('11. Authorization & RolesGuard', () => {
     it('should allow ADMIN users for allocate endpoint', () => {
       const mockContext: any = {
         getHandler: () => {},

@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { ProductAllocationItem, SalespersonStockItem, User, ProductItem, PaginationMeta } from '../../types/api';
+import { ProductAllocationItem, SalespersonStockItem, Salesperson, ProductItem, PaginationMeta } from '../../types/api';
 import { salespersonStockService } from '../../services/salesperson-stock.service';
+import { salespeopleService } from '../../services/salespeople.service';
 import { productService } from '../../services/product.service';
 import { useAuth } from '../../context/AuthContext';
 import { AppShell } from '../../components/layout/AppShell';
@@ -22,7 +23,7 @@ export default function AllocationsPage() {
   const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
 
   // Filter States
-  const [usersList, setUsersList] = useState<User[]>([]);
+  const [salespeopleList, setSalespeopleList] = useState<Salesperson[]>([]);
   const [productsList, setProductsList] = useState<ProductItem[]>([]);
   const [filterSalespersonId, setFilterSalespersonId] = useState<string>('');
   const [filterProductId, setFilterProductId] = useState<string>('');
@@ -44,15 +45,15 @@ export default function AllocationsPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  // Load Filter Options (Users & Products)
+  // Load Filter Options (Salespeople & Products)
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
-        const [usersData, productsRes] = await Promise.all([
-          salespersonStockService.getUsers(),
+        const [salespeopleData, productsRes] = await Promise.all([
+          salespeopleService.getSalespeople(),
           productService.getProducts({ limit: 100 }),
         ]);
-        setUsersList(usersData || []);
+        setSalespeopleList(salespeopleData || []);
         setProductsList(productsRes.data || []);
       } catch (err) {
         console.error('Failed to load allocation filter options:', err);
@@ -166,11 +167,15 @@ export default function AllocationsPage() {
                 setFilterSalespersonId(val);
                 setCurrentPage(1);
               }}
+              disabled={salespeopleList.length === 0}
               options={[
-                { value: '', label: 'All Salespeople' },
-                ...usersList.map((u) => ({
-                  value: u.id,
-                  label: `${u.name} (${u.email})`,
+                {
+                  value: '',
+                  label: salespeopleList.length === 0 ? 'No salespeople available' : 'All Salespeople',
+                },
+                ...salespeopleList.map((sp) => ({
+                  value: sp.id,
+                  label: sp.phone ? `${sp.name} (${sp.phone})` : sp.name,
                 })),
               ]}
             />
@@ -267,9 +272,11 @@ export default function AllocationsPage() {
                           <span className="block font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
                             {item.salesperson.name}
                           </span>
-                          <span className="block text-[11px] text-[#86868B]">
-                            {item.salesperson.email}
-                          </span>
+                          {item.salesperson.phone && (
+                            <span className="block text-[11px] text-[#86868B]">
+                              {item.salesperson.phone}
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5">
                           <span className="block font-medium">{item.product.name}</span>
@@ -301,7 +308,9 @@ export default function AllocationsPage() {
                         <span className="block font-bold text-xs text-[#1D1D1F] dark:text-[#F5F5F7]">
                           {item.salesperson.name}
                         </span>
-                        <span className="block text-[10px] text-[#86868B]">{item.salesperson.email}</span>
+                        {item.salesperson.phone && (
+                          <span className="block text-[10px] text-[#86868B]">{item.salesperson.phone}</span>
+                        )}
                       </div>
                       <Badge variant="info" size="sm">
                         Qty: {item.quantity}

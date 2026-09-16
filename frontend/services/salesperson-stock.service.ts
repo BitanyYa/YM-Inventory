@@ -5,8 +5,8 @@ import {
   ProductAllocationListResponse,
   QueryProductAllocationParams,
   QuerySalespersonStockParams,
+  Salesperson,
   SalespersonStockItem,
-  User,
 } from '../types/api';
 
 export const salespersonStockService = {
@@ -28,7 +28,7 @@ export const salespersonStockService = {
   },
 
   async getSalespersonStockBySalesperson(salespersonId: string): Promise<{
-    salesperson: User;
+    salesperson: Salesperson;
     stocks: Array<{
       id: string;
       product: {
@@ -56,9 +56,5 @@ export const salespersonStockService = {
     const queryString = q.toString();
     const endpoint = `/salesperson-stock/allocations${queryString ? `?${queryString}` : ''}`;
     return apiClient<ProductAllocationListResponse>(endpoint);
-  },
-
-  async getUsers(): Promise<User[]> {
-    return apiClient<User[]>('/users');
   },
 };

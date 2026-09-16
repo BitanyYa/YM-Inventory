@@ -45,13 +45,19 @@ export class SalespersonStockService {
       );
     }
 
-    const salesperson = await this.prisma.user.findUnique({
+    const salesperson = await this.prisma.salesperson.findUnique({
       where: { id: dto.salespersonId },
     });
 
     if (!salesperson) {
       throw new NotFoundException(
-        `Salesperson user with ID "${dto.salespersonId}" not found`,
+        `Salesperson with ID "${dto.salespersonId}" not found`,
+      );
+    }
+
+    if (!salesperson.isActive) {
+      throw new BadRequestException(
+        `Salesperson "${salesperson.name}" is inactive and cannot receive stock allocations`,
       );
     }
 
@@ -155,7 +161,7 @@ export class SalespersonStockService {
         salesperson: {
           id: salesperson.id,
           name: salesperson.name,
-          email: salesperson.email,
+          phone: salesperson.phone,
         },
         allocatedQuantity: dto.quantity,
         salespersonBalance: updatedSalespersonStock.quantity,
@@ -185,7 +191,7 @@ export class SalespersonStockService {
       orderBy: { updatedAt: 'desc' },
       include: {
         salesperson: {
-          select: { id: true, name: true, email: true, role: true },
+          select: { id: true, name: true, phone: true, isActive: true },
         },
         product: {
           select: {
@@ -214,13 +220,13 @@ export class SalespersonStockService {
   }
 
   async findStockBySalesperson(salespersonId: string) {
-    const salesperson = await this.prisma.user.findUnique({
+    const salesperson = await this.prisma.salesperson.findUnique({
       where: { id: salespersonId },
     });
 
     if (!salesperson) {
       throw new NotFoundException(
-        `Salesperson user with ID "${salespersonId}" not found`,
+        `Salesperson with ID "${salespersonId}" not found`,
       );
     }
 
@@ -245,8 +251,8 @@ export class SalespersonStockService {
       salesperson: {
         id: salesperson.id,
         name: salesperson.name,
-        email: salesperson.email,
-        role: salesperson.role,
+        phone: salesperson.phone,
+        isActive: salesperson.isActive,
       },
       stocks: stocks.map((s) => ({
         id: s.id,
@@ -285,7 +291,7 @@ export class SalespersonStockService {
         orderBy: { createdAt: 'desc' },
         include: {
           salesperson: {
-            select: { id: true, name: true, email: true, role: true },
+            select: { id: true, name: true, phone: true, isActive: true },
           },
           product: {
             select: {

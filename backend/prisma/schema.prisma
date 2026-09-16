@@ -57,19 +57,31 @@ enum MovementType {
 }
 
 model User {
-  id             String          @id @default(uuid())
-  name           String
-  email          String          @unique
-  password       String
-  role           UserRole        @default(USER)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  stockMovements      StockMovement[]
-  stockBatches        StockBatch[]
-  salespersonStocks   SalespersonStock[]  @relation("SalespersonStockSalesperson")
-  productAllocations  ProductAllocation[] @relation("AllocationSalesperson")
-  allocatedProducts   ProductAllocation[] @relation("AllocationAllocatedBy")
-  branchTransfers     BranchTransfer[]    @relation("BranchTransferTransferredBy")
+  id                String              @id @default(uuid())
+  name              String
+  email             String              @unique
+  password          String
+  role              UserRole            @default(USER)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  stockMovements    StockMovement[]
+  stockBatches      StockBatch[]
+  allocatedProducts ProductAllocation[] @relation("AllocationAllocatedBy")
+  branchTransfers   BranchTransfer[]    @relation("BranchTransferTransferredBy")
+}
+
+model Salesperson {
+  id                 String              @id @default(uuid())
+  name               String
+  phone              String?
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  salespersonStocks  SalespersonStock[]
+  productAllocations ProductAllocation[]
+
+  @@index([name])
+  @@index([isActive])
 }
 
 model Category {
@@ -194,14 +206,14 @@ model StockMovementUnit {
 }
 
 model SalespersonStock {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   salespersonId String
-  salesperson   User     @relation("SalespersonStockSalesperson", fields: [salespersonId], references: [id], onDelete: Cascade)
+  salesperson   Salesperson @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
   productId     String
-  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  quantity      Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity      Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@unique([salespersonId, productId])
   @@index([salespersonId])
@@ -209,16 +221,16 @@ model SalespersonStock {
 }
 
 model ProductAllocation {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   salespersonId String
-  salesperson   User     @relation("AllocationSalesperson", fields: [salespersonId], references: [id], onDelete: Restrict)
+  salesperson   Salesperson @relation(fields: [salespersonId], references: [id], onDelete: Restrict)
   productId     String
-  product       Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity      Int
   note          String?
   allocatedById String
-  allocatedBy   User     @relation("AllocationAllocatedBy", fields: [allocatedById], references: [id])
-  createdAt     DateTime @default(now())
+  allocatedBy   User        @relation("AllocationAllocatedBy", fields: [allocatedById], references: [id])
+  createdAt     DateTime    @default(now())
 
   @@index([salespersonId])
   @@index([productId])

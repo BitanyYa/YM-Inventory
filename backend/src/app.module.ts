@@ -14,6 +14,7 @@ import { ReportsModule } from './reports/reports.module';
 import { CommonModule } from './common/common.module';
 import { SalespersonStockModule } from './salesperson-stock/salesperson-stock.module';
 import { BranchTransfersModule } from './branch-transfers/branch-transfers.module';
+import { SalespeopleModule } from './salespeople/salespeople.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { BranchTransfersModule } from './branch-transfers/branch-transfers.modul
     CommonModule,
     SalespersonStockModule,
     BranchTransfersModule,
+    SalespeopleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

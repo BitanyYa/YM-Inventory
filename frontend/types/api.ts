@@ -525,7 +525,32 @@ export interface ReconcileStockResponse {
   foundUnitsCount?: number;
 }
 
-/* ─── Product Allocation & Salesperson Stock Types ──────────────────────────── */
+/* ─── Salesperson & Product Allocation Types ──────────────────────────────── */
+
+export interface Salesperson {
+  id: string;
+  name: string;
+  phone?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSalespersonRequest {
+  name: string;
+  phone?: string;
+}
+
+export interface UpdateSalespersonRequest {
+  name?: string;
+  phone?: string;
+  isActive?: boolean;
+}
+
+export interface QuerySalespeopleParams {
+  search?: string;
+  includeInactive?: boolean;
+}
 
 export interface AllocateProductRequest {
   productId: string;
@@ -545,7 +570,7 @@ export interface AllocateProductResponse {
   salesperson: {
     id: string;
     name: string;
-    email: string;
+    phone?: string | null;
   };
   allocatedQuantity: number;
   salespersonBalance: number;
@@ -563,8 +588,10 @@ export interface SalespersonStockItem {
   salesperson: {
     id: string;
     name: string;
-    email: string;
+    phone?: string | null;
+    email?: string;
     role?: UserRole;
+    isActive?: boolean;
   };
   product: {
     id: string;
@@ -587,8 +614,10 @@ export interface ProductAllocationItem {
   salesperson: {
     id: string;
     name: string;
-    email: string;
+    phone?: string | null;
+    email?: string;
     role?: UserRole;
+    isActive?: boolean;
   };
   product: {
     id: string;
