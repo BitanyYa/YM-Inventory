@@ -351,7 +351,7 @@ export const AllocateProductModal: React.FC<AllocateProductModalProps> = ({
                   }
                   options={allocatableProducts.map((p) => ({
                     value: p.id,
-                    label: `${p.name}${p.brand ? ` (${p.brand})` : ''} — Cat: ${p.category?.name ?? 'General'}`,
+                    label: `${p.name}${p.brand ? ` (${p.brand})` : ''} - Cat: ${p.category?.name ?? 'General'}`,
                   }))}
                 />
 
