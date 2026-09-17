@@ -7,6 +7,8 @@ import {
   CreateBranchTransferResponse,
   QueryBranchInventoryParams,
   QueryBranchTransferParams,
+  ReverseBranchTransferRequest,
+  ReverseBranchTransferResponse,
 } from '../types/api';
 
 export const branchTransfersService = {
@@ -26,6 +28,19 @@ export const branchTransfersService = {
     data: CreateBranchTransferRequest,
   ): Promise<CreateBranchTransferResponse> {
     return apiClient<CreateBranchTransferResponse>('/branch-transfers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * POST /branch-transfers/transfers/reverse
+   * Reverse stock from a target Branch back to Main Shop (SHOP).
+   */
+  async reverseBranchTransfer(
+    data: ReverseBranchTransferRequest,
+  ): Promise<ReverseBranchTransferResponse> {
+    return apiClient<ReverseBranchTransferResponse>('/branch-transfers/transfers/reverse', {
       method: 'POST',
       body: JSON.stringify(data),
     });

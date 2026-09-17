@@ -736,11 +736,25 @@ export interface BranchInventoryItem {
   };
 }
 
+export interface BranchTransferReversalItem {
+  id: string;
+  quantity: number;
+  reason: string;
+  reversedBy: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  createdAt: string;
+}
+
 export interface BranchTransferItem {
   id: string;
   branchId: string;
   productId: string;
   quantity: number;
+  reversedQuantity?: number;
+  remainingQuantity?: number;
   note?: string | null;
   transferredById: string;
   createdAt: string;
@@ -760,6 +774,40 @@ export interface BranchTransferItem {
     email: string;
     role?: UserRole;
   };
+  reversals?: BranchTransferReversalItem[];
+}
+
+export interface ReverseBranchTransferRequest {
+  branchTransferId: string;
+  quantity: number;
+  reason: string;
+}
+
+export interface ReverseBranchTransferResponse {
+  id: string;
+  branchTransferId: string;
+  branch: {
+    id: string;
+    name: string;
+    isActive?: boolean;
+  };
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+  };
+  reversedQuantity: number;
+  originalTransferQuantity: number;
+  totalReversedQuantity: number;
+  remainingReversibleQuantity: number;
+  reason: string;
+  reversedBy: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  createdAt: string;
 }
 
 export interface CreateBranchTransferRequest {
@@ -795,5 +843,3 @@ export interface BranchTransferListResponse {
   totalPages: number;
   meta?: PaginationMeta;
 }
-
-
