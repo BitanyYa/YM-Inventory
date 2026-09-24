@@ -34,7 +34,7 @@ export class SalespersonStockService {
       );
     }
 
-    if (!product.category || !product.category.allocationEnabled) {
+    if (product.category && !product.category.allocationEnabled) {
       throw new BadRequestException(
         'Product allocation is not enabled for this category.',
       );

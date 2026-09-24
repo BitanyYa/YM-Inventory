@@ -95,8 +95,9 @@ export const AllocateProductModal: React.FC<AllocateProductModalProps> = ({
           (item) =>
             item.isActive &&
             item.trackingType === 'QUANTITY' &&
-            item.category &&
-            (item.category.allocationEnabled === true || enabledCategoryIds.has(item.category.id)),
+            (!item.category ||
+              item.category.allocationEnabled === true ||
+              enabledCategoryIds.has(item.category.id)),
         );
 
         setAllocatableProducts(allocatable);

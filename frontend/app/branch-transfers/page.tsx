@@ -80,21 +80,28 @@ export default function BranchTransfersPage() {
   }, [successNotification]);
 
   // Load Filter Options (Branches & Products)
-  useEffect(() => {
-    const loadFilterOptions = async () => {
-      try {
-        const [branchesData, productsRes] = await Promise.all([
-          branchTransfersService.getBranches(),
-          productService.getProducts({ limit: 100 }),
-        ]);
-        setBranchesList(branchesData || []);
-        setProductsList(productsRes.data || []);
-      } catch (err) {
-        console.error('Failed to load branch transfer filter options:', err);
-      }
-    };
-    loadFilterOptions();
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const [branchesData, productsRes] = await Promise.all([
+        branchTransfersService.getBranches().catch((err) => {
+          console.warn('Failed to load branches for filters:', (err as Error)?.message || err);
+          return [];
+        }),
+        productService.getProducts({ limit: 100 }).catch((err) => {
+          console.warn('Failed to load products for filters:', (err as Error)?.message || err);
+          return { data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 0 } };
+        }),
+      ]);
+      setBranchesList(branchesData || []);
+      setProductsList(productsRes?.data || []);
+    } catch (err) {
+      console.warn('Failed to load branch transfer filter options:', (err as Error)?.message || err);
+    }
   }, []);
+
+  useEffect(() => {
+    loadFilterOptions();
+  }, [loadFilterOptions]);
 
   // Fetch Current Branch Stock
   const fetchBranchStock = useCallback(async () => {

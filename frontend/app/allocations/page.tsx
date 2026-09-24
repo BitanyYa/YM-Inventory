@@ -81,21 +81,28 @@ export default function AllocationsPage() {
   }, [successNotification]);
 
   // Load Filter Options (Salespeople & Products)
-  useEffect(() => {
-    const loadFilterOptions = async () => {
-      try {
-        const [salespeopleData, productsRes] = await Promise.all([
-          salespeopleService.getSalespeople(),
-          productService.getProducts({ limit: 100 }),
-        ]);
-        setSalespeopleList(salespeopleData || []);
-        setProductsList(productsRes.data || []);
-      } catch (err) {
-        console.error('Failed to load allocation filter options:', err);
-      }
-    };
-    loadFilterOptions();
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const [salespeopleData, productsRes] = await Promise.all([
+        salespeopleService.getSalespeople().catch((err) => {
+          console.warn('Failed to load salespeople for filters:', (err as Error)?.message || err);
+          return [];
+        }),
+        productService.getProducts({ limit: 100 }).catch((err) => {
+          console.warn('Failed to load products for filters:', (err as Error)?.message || err);
+          return { data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 0 } };
+        }),
+      ]);
+      setSalespeopleList(salespeopleData || []);
+      setProductsList(productsRes?.data || []);
+    } catch (err) {
+      console.warn('Failed to load allocation filter options:', (err as Error)?.message || err);
+    }
   }, []);
+
+  useEffect(() => {
+    loadFilterOptions();
+  }, [loadFilterOptions]);
 
   // Fetch Stock Balances
   const fetchStockBalances = useCallback(async () => {

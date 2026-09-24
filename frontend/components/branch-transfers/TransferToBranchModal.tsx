@@ -5,6 +5,7 @@ import { Branch, InventoryProductItem } from '../../types/api';
 import { branchTransfersService } from '../../services/branch-transfers.service';
 import { inventoryService, invalidateInventoryCache } from '../../services/inventory.service';
 import { productService } from '../../services/product.service';
+import { categoryService } from '../../services/category.service';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
@@ -39,17 +40,27 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
       setIsLoadingInitial(true);
       setError(null);
       try {
-        const [branchesData, inventoryRes] = await Promise.all([
+        const [branchesData, inventoryRes, categoriesData] = await Promise.all([
           branchTransfersService.getBranches(),
           inventoryService.getInventory({ limit: 100 }),
+          categoryService.getCategories(),
         ]);
+
+        const enabledCategoryIds = new Set(
+          (categoriesData || []).filter((c) => c.allocationEnabled).map((c) => c.id),
+        );
 
         const activeBranches = (branchesData || []).filter((b) => b.isActive);
         setBranches(activeBranches);
 
-        // Filter for active products tracked by QUANTITY
+        // Filter for active products tracked by QUANTITY and whose category has allocationEnabled (or no category)
         const eligibleProducts = (inventoryRes.data || []).filter(
-          (item) => item.isActive && item.trackingType === 'QUANTITY',
+          (item) =>
+            item.isActive &&
+            item.trackingType === 'QUANTITY' &&
+            (!item.category ||
+              item.category.allocationEnabled === true ||
+              enabledCategoryIds.has(item.category.id)),
         );
 
         setTransferableProducts(eligibleProducts);
@@ -197,7 +208,7 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
                 }
                 options={transferableProducts.map((p) => ({
                   value: p.id,
-                  label: `${p.name}${p.brand ? ` (${p.brand})` : ''} — Cat: ${p.category?.name ?? 'General'}`,
+                  label: `${p.name}${p.brand ? ` (${p.brand})` : ''} - Cat: ${p.category?.name ?? 'General'}`,
                 }))}
               />
 

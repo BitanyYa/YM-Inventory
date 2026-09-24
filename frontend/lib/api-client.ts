@@ -1,7 +1,7 @@
 import { ApiErrorResponse } from '../types/api';
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export class ApiError extends Error {
   statusCode: number;

@@ -69,6 +69,7 @@ export class BranchTransfersService implements OnModuleInit {
 
     const product = await this.prisma.product.findUnique({
       where: { id: dto.productId },
+      include: { category: true },
     });
 
     if (!product) {
@@ -78,6 +79,12 @@ export class BranchTransfersService implements OnModuleInit {
     if (!product.isActive) {
       throw new BadRequestException(
         `Product "${product.name}" is inactive and cannot be transferred`,
+      );
+    }
+
+    if (product.category && !product.category.allocationEnabled) {
+      throw new BadRequestException(
+        'Branch transfer is not enabled for this category.',
       );
     }
 
