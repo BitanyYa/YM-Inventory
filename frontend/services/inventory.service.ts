@@ -16,6 +16,7 @@ import {
   ProductUnitItem,
   ReconcileStockRequest,
   ReconcileStockResponse,
+  StockDamagesResponse,
 } from '../types/api';
 
 /**
@@ -159,6 +160,37 @@ export const inventoryService = {
     if (params.trackingType) q.append('trackingType', params.trackingType);
     const qs = q.toString();
     return apiClient<InventoryAlertsResponse>(`/inventory/alerts${qs ? `?${qs}` : ''}`);
+  },
+
+  /**
+   * GET /stock/damages
+   * Retrieve paginated history of damaged and lost stock items.
+   */
+  async getDamages(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    productId?: string;
+    productType?: string;
+    trackingType?: string;
+    location?: string;
+    movementType?: string;
+    startDate?: string;
+    endDate?: string;
+  } = {}): Promise<StockDamagesResponse> {
+    const q = new URLSearchParams();
+    if (params.page) q.append('page', params.page.toString());
+    if (params.limit) q.append('limit', params.limit.toString());
+    if (params.search?.trim()) q.append('search', params.search.trim());
+    if (params.productId) q.append('productId', params.productId);
+    if (params.productType) q.append('productType', params.productType);
+    if (params.trackingType) q.append('trackingType', params.trackingType);
+    if (params.location) q.append('location', params.location);
+    if (params.movementType) q.append('movementType', params.movementType);
+    if (params.startDate) q.append('startDate', params.startDate);
+    if (params.endDate) q.append('endDate', params.endDate);
+    const qs = q.toString();
+    return apiClient<StockDamagesResponse>(`/stock/damages${qs ? `?${qs}` : ''}`);
   },
 
   /**

@@ -24,6 +24,7 @@ import { SearchIcon, AlertTriangleIcon } from '../../components/ui/Icons';
 function StockBadge({ status }: { status: InventoryStockStatus }) {
   if (status === 'IN_STOCK') return <Badge variant="success" size="sm">In Stock</Badge>;
   if (status === 'LOW_STOCK') return <Badge variant="warning" size="sm">Low</Badge>;
+  if (status === 'DAMAGED') return <Badge variant="danger" size="sm">Damaged</Badge>;
   return <Badge variant="danger" size="sm">Out</Badge>;
 }
 
@@ -46,7 +47,7 @@ interface ProductActionMenuProps {
   onToggleStatus: (product: ProductItem) => void;
 }
 
-function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: ProductActionMenuProps) {
+const ProductActionMenu = React.memo(function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: ProductActionMenuProps) {
   const [open, setOpen] = React.useState(false);
   const [coords, setCoords] = React.useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
@@ -147,7 +148,7 @@ function ProductActionMenu({ product, isAdmin, onEdit, onToggleStatus }: Product
       )}
     </>
   );
-}
+});
 
 export default function ProductsPage() {
   const { user } = useAuth();
@@ -162,7 +163,7 @@ export default function ProductsPage() {
   const [productType, setProductType] = useState<ProductType | ''>('');
   const [trackingType, setTrackingType] = useState<TrackingType | ''>('');
   const [categoryId, setCategoryId] = useState('');
-  const [isActiveFilter, setIsActiveFilter] = useState('true');
+  const [isActiveFilter, setIsActiveFilter] = useState('all');
   const [stockStatusFilter, setStockStatusFilter] = useState<InventoryStockStatus | ''>('');
   const [page, setPage] = useState(1);
 
@@ -171,6 +172,7 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const reqIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
@@ -193,7 +195,7 @@ export default function ProductsPage() {
 
   const fetchProducts = useCallback(async () => {
     const currentReqId = ++reqIdRef.current;
-    if (products.length === 0) {
+    if (!hasLoadedRef.current) {
       setIsLoading(true);
     }
     setIsFetching(true);
@@ -212,6 +214,7 @@ export default function ProductsPage() {
       if (currentReqId === reqIdRef.current) {
         setProducts(res.data ?? []);
         setMeta(res.meta);
+        hasLoadedRef.current = true;
       }
     } catch (e: unknown) {
       if (currentReqId === reqIdRef.current) {
@@ -223,13 +226,13 @@ export default function ProductsPage() {
         setIsFetching(false);
       }
     }
-  }, [page, debouncedSearch, productType, trackingType, categoryId, isActiveFilter, stockStatusFilter, products.length]);
+  }, [page, debouncedSearch, productType, trackingType, categoryId, isActiveFilter, stockStatusFilter]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   const showSuccess = (msg: string) => { setSuccessBanner(msg); setTimeout(() => setSuccessBanner(null), 4000); };
-  const resetFilters = () => { setSearch(''); setProductType(''); setTrackingType(''); setCategoryId(''); setIsActiveFilter('true'); setStockStatusFilter(''); setPage(1); };
-  const hasFilters = !!(debouncedSearch || productType || trackingType || categoryId || stockStatusFilter || isActiveFilter !== 'true');
+  const resetFilters = () => { setSearch(''); setProductType(''); setTrackingType(''); setCategoryId(''); setIsActiveFilter('all'); setStockStatusFilter(''); setPage(1); };
+  const hasFilters = !!(debouncedSearch || productType || trackingType || categoryId || stockStatusFilter || isActiveFilter !== 'all');
 
   const handleConfirmStatusToggle = async () => {
     if (!statusToggleProduct) return;
@@ -314,6 +317,28 @@ export default function ProductsPage() {
           )}
         </div>
 
+        {/* quick status filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+          {[
+            { label: 'All Products', active: isActiveFilter === 'all' && stockStatusFilter === '', onClick: () => { setIsActiveFilter('all'); setStockStatusFilter(''); setPage(1); } },
+            { label: 'Active', active: isActiveFilter === 'true' && stockStatusFilter === '', onClick: () => { setIsActiveFilter('true'); setStockStatusFilter(''); setPage(1); } },
+            { label: 'Deactivated', active: isActiveFilter === 'false', onClick: () => { setIsActiveFilter('false'); setStockStatusFilter(''); setPage(1); } },
+            { label: 'Damaged Stock', active: stockStatusFilter === 'DAMAGED', onClick: () => { setStockStatusFilter('DAMAGED'); setIsActiveFilter('all'); setPage(1); } },
+          ].map((pill) => (
+            <button
+              key={pill.label}
+              onClick={pill.onClick}
+              className={`rounded-xl px-3 py-1 text-xs font-semibold transition-colors ${
+                pill.active
+                  ? 'bg-[#0F172A] text-white shadow-xs dark:bg-[#F8FAFC] dark:text-[#0F172A]'
+                  : 'border border-[#CBD5E1] bg-white text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#0F172A] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#94A3B8] dark:hover:bg-[#334155] dark:hover:text-[#F8FAFC]'
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
+
         {/* filter bar */}
         <div className="flex flex-col gap-2 rounded-2xl border border-[#E2E8F0] bg-white p-2.5 shadow-xs dark:border-[#334155] dark:bg-[#1E293B] sm:flex-row sm:items-center">
           <div className="relative min-w-[280px] sm:min-w-[360px] md:min-w-[400px] flex-1">
@@ -350,11 +375,17 @@ export default function ProductsPage() {
               },
               {
                 value: stockStatusFilter, onChange: (v: string) => { setStockStatusFilter(v as InventoryStockStatus | ''); setPage(1); },
-                options: [{ label: 'All Status', value: '' }, { label: 'In Stock', value: 'IN_STOCK' }, { label: 'Low Stock', value: 'LOW_STOCK' }, { label: 'Out of Stock', value: 'OUT_OF_STOCK' }],
+                options: [
+                  { label: 'All Status', value: '' },
+                  { label: 'In Stock', value: 'IN_STOCK' },
+                  { label: 'Low Stock', value: 'LOW_STOCK' },
+                  { label: 'Out of Stock', value: 'OUT_OF_STOCK' },
+                  { label: 'Damaged Stock', value: 'DAMAGED' },
+                ],
               },
               {
                 value: isActiveFilter, onChange: (v: string) => { setIsActiveFilter(v); setPage(1); },
-                options: [{ label: 'Active', value: 'true' }, { label: 'Inactive', value: 'false' }, { label: 'All Statuses', value: 'all' }],
+                options: [{ label: 'All Statuses', value: 'all' }, { label: 'Active', value: 'true' }, { label: 'Deactivated', value: 'false' }],
               },
             ].map((sel, i) => (
               <Select
@@ -417,9 +448,12 @@ export default function ProductsPage() {
                       <td className="px-3 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.shopQuantity}</td>
                       <td className="px-3 py-2.5 tabular-nums font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.totalQuantity}</td>
                       <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <StockBadge status={p.stockStatus} />
-                          {!p.isActive && <Badge variant="neutral" size="sm">Inactive</Badge>}
+                          {!p.isActive && <Badge variant="neutral" size="sm">Deactivated</Badge>}
+                          {(p.inventory.damagedQuantity ?? 0) > 0 && (
+                            <Badge variant="danger" size="sm">{p.inventory.damagedQuantity} Damaged</Badge>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2.5 tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">{formatCurrency(p.sellingPrice)}</td>
@@ -455,14 +489,20 @@ export default function ProductsPage() {
                     </Link>
                     <p className="text-[11px] text-[#86868B]">{p.brand} · {p.category?.name ?? 'Uncategorized'}</p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
                     <StockBadge status={p.stockStatus} />
-                    {!p.isActive && <Badge variant="neutral" size="sm">Inactive</Badge>}
+                    {!p.isActive && <Badge variant="neutral" size="sm">Deactivated</Badge>}
+                    {(p.inventory.damagedQuantity ?? 0) > 0 && (
+                      <Badge variant="danger" size="sm">{p.inventory.damagedQuantity} Damaged</Badge>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-lg bg-[#F5F5F7] px-3 py-2 text-xs dark:bg-[#2C2C2E]">
+                <div className="flex items-center gap-2.5 flex-wrap rounded-lg bg-[#F5F5F7] px-3 py-2 text-xs dark:bg-[#2C2C2E]">
                   <span className="text-[#6E6E73]">WH: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.warehouseQuantity}</strong></span>
                   <span className="text-[#6E6E73]">Shop: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.shopQuantity}</strong></span>
+                  {(p.inventory.damagedQuantity ?? 0) > 0 && (
+                    <span className="text-[#DC2626] dark:text-[#EF4444]">Dmg: <strong className="font-bold">{p.inventory.damagedQuantity}</strong></span>
+                  )}
                   <span className="text-[#6E6E73]">Total: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.totalQuantity}</strong></span>
                   <span className="ml-auto font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{formatCurrency(p.sellingPrice)}</span>
                 </div>
@@ -498,21 +538,31 @@ export default function ProductsPage() {
       </div>
 
       {/* modals */}
-      <CreateProductModal isOpen={isCreateProductOpen} onClose={() => setIsCreateProductOpen(false)}
-        onSuccess={() => { showSuccess('Product created.'); fetchProducts(); fetchCategories(); }} />
-      <EditProductModal product={editingProduct} isOpen={!!editingProduct} onClose={() => setEditingProduct(null)}
-        onSuccess={() => { showSuccess('Product updated.'); fetchProducts(); fetchCategories(); }} />
-      <CreateCategoryModal isOpen={isCreateCategoryOpen} onClose={() => setIsCreateCategoryOpen(false)}
-        onSuccess={(cat) => { showSuccess(`Category "${cat.name}" created.`); fetchCategories(); setCategoryId(cat.id); }} />
-      <EditCategoryModal category={editingCategory} isOpen={!!editingCategory} onClose={() => setEditingCategory(null)}
-        onSuccess={(cat) => { showSuccess(`Category "${cat.name}" updated.`); fetchCategories(); fetchProducts(); }} />
-      <ManageCategoriesModal
-        isOpen={isManageCategoriesOpen}
-        onClose={() => setIsManageCategoriesOpen(false)}
-        onEditCategory={(cat) => setEditingCategory(cat)}
-        onCreateCategory={() => setIsCreateCategoryOpen(true)}
-        onCategoriesUpdated={() => { fetchCategories(); fetchProducts(); }}
-      />
+      {isCreateProductOpen && (
+        <CreateProductModal isOpen={isCreateProductOpen} onClose={() => setIsCreateProductOpen(false)}
+          onSuccess={() => { showSuccess('Product created.'); fetchProducts(); fetchCategories(); }} />
+      )}
+      {editingProduct && (
+        <EditProductModal product={editingProduct} isOpen={!!editingProduct} onClose={() => setEditingProduct(null)}
+          onSuccess={() => { showSuccess('Product updated.'); fetchProducts(); fetchCategories(); }} />
+      )}
+      {isCreateCategoryOpen && (
+        <CreateCategoryModal isOpen={isCreateCategoryOpen} onClose={() => setIsCreateCategoryOpen(false)}
+          onSuccess={(cat) => { showSuccess(`Category "${cat.name}" created.`); fetchCategories(); setCategoryId(cat.id); }} />
+      )}
+      {editingCategory && (
+        <EditCategoryModal category={editingCategory} isOpen={!!editingCategory} onClose={() => setEditingCategory(null)}
+          onSuccess={(cat) => { showSuccess(`Category "${cat.name}" updated.`); fetchCategories(); fetchProducts(); }} />
+      )}
+      {isManageCategoriesOpen && (
+        <ManageCategoriesModal
+          isOpen={isManageCategoriesOpen}
+          onClose={() => setIsManageCategoriesOpen(false)}
+          onEditCategory={(cat) => setEditingCategory(cat)}
+          onCreateCategory={() => setIsCreateCategoryOpen(true)}
+          onCategoriesUpdated={() => { fetchCategories(); fetchProducts(); }}
+        />
+      )}
 
       {/* deactivation confirm modal */}
       {statusToggleProduct && (

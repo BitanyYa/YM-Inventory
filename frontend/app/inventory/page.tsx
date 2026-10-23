@@ -12,8 +12,10 @@ import {
   InventoryStockStatus,
   PaginationMeta,
   ProductType,
+  StockDamageItem,
   TrackingType,
 } from '../../types/api';
+import { formatDate } from '../../lib/utils';
 import { AppShell } from '../../components/layout/AppShell';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -30,7 +32,7 @@ import { ReconcileStockModal } from '../../components/inventory/ReconcileStockMo
 
 type ModalType = 'receive' | 'transfer' | 'sell' | 'return' | 'damage' | 'reconcile' | null;
 type LocationTab = 'ALL' | 'WAREHOUSE' | 'SHOP';
-type PageTab = 'inventory' | 'alerts';
+type PageTab = 'inventory' | 'alerts' | 'damaged';
 
 /* ─── small helpers ──────────────────────────────────────────────────────── */
 
@@ -39,6 +41,8 @@ function StockBadge({ status }: { status: InventoryStockStatus }) {
     return <Badge variant="success" size="sm">In Stock</Badge>;
   if (status === 'LOW_STOCK')
     return <Badge variant="warning" size="sm">Low Stock</Badge>;
+  if (status === 'DAMAGED')
+    return <Badge variant="danger" size="sm">Damaged</Badge>;
   return <Badge variant="danger" size="sm">Out of Stock</Badge>;
 }
 
@@ -65,7 +69,7 @@ interface ActionMenuProps {
   onAction: (type: ModalType, product: InventoryProductItem) => void;
 }
 
-function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
+const ActionMenu = React.memo(function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -198,7 +202,7 @@ function ActionMenu({ product, isAdmin, onAction }: ActionMenuProps) {
       )}
     </>
   );
-}
+});
 
 /* ─── page ───────────────────────────────────────────────────────────────── */
 
@@ -216,6 +220,7 @@ export default function InventoryPage() {
   const [summary, setSummary] = useState<{
     totalProducts: number; warehouseUnits: number; shopUnits: number;
     lowStockProducts: number; outOfStockProducts: number;
+    damagedUnits?: number;
   } | null>(null);
 
   /* ── alerts state ── */
@@ -225,6 +230,17 @@ export default function InventoryPage() {
   const [alertsError, setAlertsError] = useState<string | null>(null);
   const [alertsPage, setAlertsPage] = useState(1);
 
+  /* ── damages state ── */
+  const [damages, setDamages] = useState<StockDamageItem[]>([]);
+  const [damagesMeta, setDamagesMeta] = useState<PaginationMeta>({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [damagesLoading, setDamagesLoading] = useState(false);
+  const [damagesError, setDamagesError] = useState<string | null>(null);
+  const [damagesPage, setDamagesPage] = useState(1);
+  const [damagesSearch, setDamagesSearch] = useState('');
+  const [debouncedDamagesSearch, setDebouncedDamagesSearch] = useState('');
+  const [damagesLocation, setDamagesLocation] = useState<'ALL' | 'WAREHOUSE' | 'SHOP'>('ALL');
+  const [damagesMovementType, setDamagesMovementType] = useState<'' | 'DAMAGE' | 'LOSS'>('');
+
   /* ── inventory filters ── */
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -233,6 +249,7 @@ export default function InventoryPage() {
   const [productType, setProductType] = useState<ProductType | ''>('');
   const [trackingType, setTrackingType] = useState<TrackingType | ''>('');
   const [stockStatus, setStockStatus] = useState<InventoryStockStatus | ''>('');
+  const [isActiveFilter, setIsActiveFilter] = useState('all');
   const [page, setPage] = useState(1);
 
   /* ── ui state ── */
@@ -241,6 +258,7 @@ export default function InventoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const reqIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   /* ── modal state ── */
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -255,6 +273,11 @@ export default function InventoryPage() {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedDamagesSearch(damagesSearch); setDamagesPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [damagesSearch]);
 
   /* ── fetch categories ── */
   const fetchCategories = useCallback(async () => {
@@ -273,6 +296,7 @@ export default function InventoryPage() {
         shopUnits: res.data.shopUnits,
         lowStockProducts: res.data.lowStockProducts,
         outOfStockProducts: res.data.outOfStockProducts,
+        damagedUnits: res.data.damagedUnits,
       });
     } catch { /* non-critical */ }
   }, []);
@@ -281,10 +305,11 @@ export default function InventoryPage() {
   /* ── fetch inventory ── */
   const fetchInventory = useCallback(async () => {
     const currentReqId = ++reqIdRef.current;
-    if (products.length === 0) setIsLoading(true);
+    if (!hasLoadedRef.current) setIsLoading(true);
     setIsFetching(true);
     setError(null);
     try {
+      const isActive = isActiveFilter === 'true' ? true : isActiveFilter === 'false' ? false : undefined;
       const res = await inventoryService.getInventory({
         page, limit: 20,
         search: debouncedSearch,
@@ -293,11 +318,12 @@ export default function InventoryPage() {
         productType: productType || undefined,
         trackingType: trackingType || undefined,
         stockStatus: stockStatus || undefined,
-        isActive: true,
+        isActive,
       });
       if (currentReqId === reqIdRef.current) {
         setProducts(res.data || []);
         setMeta(res.meta);
+        hasLoadedRef.current = true;
       }
     } catch (err: unknown) {
       if (currentReqId === reqIdRef.current) {
@@ -309,7 +335,7 @@ export default function InventoryPage() {
         setIsFetching(false);
       }
     }
-  }, [page, debouncedSearch, categoryId, locationTab, productType, trackingType, stockStatus, products.length]);
+  }, [page, debouncedSearch, categoryId, locationTab, productType, trackingType, stockStatus, isActiveFilter]);
   useEffect(() => { fetchInventory(); }, [fetchInventory]);
 
   /* ── fetch alerts ── */
@@ -328,23 +354,51 @@ export default function InventoryPage() {
     if (pageTab === 'alerts') fetchAlerts();
   }, [pageTab, fetchAlerts]);
 
+  /* ── fetch damages ── */
+  const fetchDamages = useCallback(async () => {
+    setDamagesLoading(true); setDamagesError(null);
+    try {
+      const res = await inventoryService.getDamages({
+        page: damagesPage,
+        limit: 20,
+        search: debouncedDamagesSearch || undefined,
+        location: damagesLocation !== 'ALL' ? damagesLocation : undefined,
+        movementType: damagesMovementType || undefined,
+      });
+      setDamages(res.data || []);
+      setDamagesMeta(res.meta);
+    } catch (err: unknown) {
+      setDamagesError((err as { message?: string })?.message || 'Failed to load damage records.');
+    } finally { setDamagesLoading(false); }
+  }, [damagesPage, debouncedDamagesSearch, damagesLocation, damagesMovementType]);
+
+  useEffect(() => {
+    if (pageTab === 'damaged') fetchDamages();
+  }, [pageTab, fetchDamages]);
+
   /* ── handlers ── */
   const showSuccess = (msg: string) => {
     setSuccessBanner(msg); setTimeout(() => setSuccessBanner(null), 4000);
   };
   const handleOpSuccess = (label: string) => {
     showSuccess(`${label} recorded.`); fetchInventory(); fetchSummary();
+    if (pageTab === 'damaged') fetchDamages();
   };
-  const openModal = (type: ModalType, p: InventoryProductItem) => {
-    setSelectedProduct(p); setActiveModal(type);
-  };
-  const closeModal = () => { setActiveModal(null); setSelectedProduct(null); };
+  const openModal = useCallback((type: ModalType, p: InventoryProductItem) => {
+    setSelectedProduct(p);
+    setActiveModal(type);
+  }, []);
+  const closeModal = useCallback(() => {
+    setActiveModal(null);
+    setSelectedProduct(null);
+  }, []);
 
   const resetFilters = () => {
     setSearch(''); setDebouncedSearch(''); setLocationTab('ALL');
-    setCategoryId(''); setProductType(''); setTrackingType(''); setStockStatus(''); setPage(1);
+    setCategoryId(''); setProductType(''); setTrackingType(''); setStockStatus('');
+    setIsActiveFilter('all'); setPage(1);
   };
-  const hasFilters = !!(debouncedSearch || locationTab !== 'ALL' || categoryId || productType || trackingType || stockStatus);
+  const hasFilters = !!(debouncedSearch || locationTab !== 'ALL' || categoryId || productType || trackingType || stockStatus || isActiveFilter !== 'all');
 
   /* ── shared class ── */
   const selectCls = 'rounded-lg border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/50 focus:border-[#0071E3] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]';
@@ -400,6 +454,11 @@ export default function InventoryPage() {
             <span className="text-[#86868B]">
               Shop: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{summary.shopUnits.toLocaleString()}</strong>
             </span>
+            {(summary.damagedUnits ?? 0) > 0 && (
+              <span className="font-semibold text-[#DC2626] dark:text-[#EF4444]">
+                Damaged: <strong className="font-bold">{summary.damagedUnits?.toLocaleString()}</strong>
+              </span>
+            )}
             {summary.outOfStockProducts > 0 && (
               <span className="font-medium text-[#FF3B30] dark:text-[#FF453A]">
                 {summary.outOfStockProducts} out of stock
@@ -413,7 +472,7 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {/* ── page tabs: Inventory / Alerts ── */}
+        {/* ── page tabs: Inventory / Alerts / Damaged Stock ── */}
         <div className="flex items-center gap-1 border-b border-[#E8E8ED] dark:border-[#38383A]">
           {([
             { key: 'inventory', label: 'Inventory' },
@@ -423,6 +482,11 @@ export default function InventoryPage() {
               badge: summary && (summary.lowStockProducts + summary.outOfStockProducts) > 0
                 ? summary.lowStockProducts + summary.outOfStockProducts
                 : null,
+            },
+            {
+              key: 'damaged',
+              label: 'Damaged Stock',
+              badge: summary && (summary.damagedUnits ?? 0) > 0 ? summary.damagedUnits : null,
             },
           ] as { key: PageTab; label: string; badge?: number | null }[]).map((t) => (
             <button
@@ -462,6 +526,28 @@ export default function InventoryPage() {
                   }`}
                 >
                   {loc === 'ALL' ? 'All Locations' : loc.charAt(0) + loc.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* quick status filters */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+              {[
+                { label: 'All Products', active: isActiveFilter === 'all' && stockStatus === '', onClick: () => { setIsActiveFilter('all'); setStockStatus(''); setPage(1); } },
+                { label: 'Active', active: isActiveFilter === 'true' && stockStatus === '', onClick: () => { setIsActiveFilter('true'); setStockStatus(''); setPage(1); } },
+                { label: 'Deactivated', active: isActiveFilter === 'false', onClick: () => { setIsActiveFilter('false'); setStockStatus(''); setPage(1); } },
+                { label: 'Damaged Stock', active: stockStatus === 'DAMAGED', onClick: () => { setStockStatus('DAMAGED'); setIsActiveFilter('all'); setPage(1); } },
+              ].map((pill) => (
+                <button
+                  key={pill.label}
+                  onClick={pill.onClick}
+                  className={`rounded-xl px-3 py-1 text-xs font-semibold transition-colors ${
+                    pill.active
+                      ? 'bg-[#0F172A] text-white shadow-xs dark:bg-[#F8FAFC] dark:text-[#0F172A]'
+                      : 'border border-[#CBD5E1] bg-white text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#0F172A] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#94A3B8] dark:hover:bg-[#334155] dark:hover:text-[#F8FAFC]'
+                  }`}
+                >
+                  {pill.label}
                 </button>
               ))}
             </div>
@@ -546,8 +632,21 @@ export default function InventoryPage() {
                     { label: 'In Stock', value: 'IN_STOCK' },
                     { label: 'Low Stock', value: 'LOW_STOCK' },
                     { label: 'Out of Stock', value: 'OUT_OF_STOCK' },
+                    { label: 'Damaged Stock', value: 'DAMAGED' },
                   ]}
                   onChange={(val) => { setStockStatus(val as InventoryStockStatus | ''); setPage(1); }}
+                />
+                <Select
+                  size="sm"
+                  className="w-32"
+                  value={isActiveFilter}
+                  placeholder="All Statuses"
+                  options={[
+                    { label: 'All Statuses', value: 'all' },
+                    { label: 'Active', value: 'true' },
+                    { label: 'Deactivated', value: 'false' },
+                  ]}
+                  onChange={(val) => { setIsActiveFilter(val); setPage(1); }}
                 />
                 {hasFilters && (
                   <button onClick={resetFilters} className="rounded-xl border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]">
@@ -565,13 +664,13 @@ export default function InventoryPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
-                        {['Product', 'Category', 'WH', 'Shop', 'Total', 'Status', 'Tracking', ''].map((h) => (
+                        {['Product', 'Category', 'WH', 'Shop', 'Damaged', 'Total', 'Status', 'Tracking', ''].map((h) => (
                           <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
-                      {Array.from({ length: 7 }).map((_, i) => <SkelRow key={i} cols={8} />)}
+                      {Array.from({ length: 7 }).map((_, i) => <SkelRow key={i} cols={9} />)}
                     </tbody>
                   </table>
                 </div>
@@ -602,7 +701,7 @@ export default function InventoryPage() {
                     <table className="w-full text-xs" style={{ minWidth: '640px' }}>
                       <thead>
                         <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
-                          {['Product', 'Category', 'WH', 'Shop', 'Total', 'Status', 'Tracking', ''].map((h) => (
+                          {['Product', 'Category', 'WH', 'Shop', 'Damaged', 'Total', 'Status', 'Tracking', ''].map((h) => (
                             <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
                           ))}
                         </tr>
@@ -623,11 +722,17 @@ export default function InventoryPage() {
                             <td className="px-4 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
                               {p.inventory.shopQuantity}
                             </td>
+                            <td className="px-4 py-2.5 tabular-nums font-semibold text-[#DC2626] dark:text-[#EF4444]">
+                              {(p.inventory.damagedQuantity ?? 0) > 0 ? p.inventory.damagedQuantity : '—'}
+                            </td>
                             <td className="px-4 py-2.5 tabular-nums font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
                               {p.inventory.totalQuantity}
                             </td>
                             <td className="px-4 py-2.5">
-                              <StockBadge status={p.stockStatus} />
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <StockBadge status={p.stockStatus} />
+                                {!p.isActive && <Badge variant="neutral" size="sm">Deactivated</Badge>}
+                              </div>
                             </td>
                             <td className="px-4 py-2.5">
                               <Badge variant={p.trackingType === 'SERIALIZED' ? 'info' : 'neutral'} size="sm">
@@ -657,16 +762,24 @@ export default function InventoryPage() {
                               {[p.brand, p.category?.name].filter(Boolean).join(' · ')}
                             </p>
                           </div>
-                          <StockBadge status={p.stockStatus} />
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <StockBadge status={p.stockStatus} />
+                            {!p.isActive && <Badge variant="neutral" size="sm">Deactivated</Badge>}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-3 rounded-lg bg-[#F5F5F7] px-3 py-2 text-xs dark:bg-[#2C2C2E]">
+                        <div className="flex items-center gap-2.5 flex-wrap rounded-lg bg-[#F5F5F7] px-3 py-2 text-xs dark:bg-[#2C2C2E]">
                           <span className="text-[#6E6E73]">
                             WH: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.warehouseQuantity}</strong>
                           </span>
                           <span className="text-[#6E6E73]">
                             Shop: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.shopQuantity}</strong>
                           </span>
+                          {(p.inventory.damagedQuantity ?? 0) > 0 && (
+                            <span className="text-[#DC2626] dark:text-[#EF4444]">
+                              Damaged: <strong className="font-bold">{p.inventory.damagedQuantity}</strong>
+                            </span>
+                          )}
                           <span className="text-[#6E6E73]">
                             Total: <strong className="text-[#1D1D1F] dark:text-[#F5F5F7]">{p.inventory.totalQuantity}</strong>
                           </span>
@@ -811,61 +924,323 @@ export default function InventoryPage() {
           </div>
         )}
 
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── DAMAGED STOCK TAB ── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {pageTab === 'damaged' && (
+          <div className="space-y-3">
+            {/* filter bar for damaged items */}
+            <div className="flex flex-col gap-2 rounded-2xl border border-[#E2E8F0] bg-white p-2.5 shadow-xs dark:border-[#334155] dark:bg-[#1E293B] sm:flex-row sm:items-center">
+              <div className="relative min-w-[280px] sm:min-w-[360px] md:min-w-[400px] flex-1">
+                <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+                <input
+                  type="text"
+                  value={damagesSearch}
+                  onChange={(e) => setDamagesSearch(e.target.value)}
+                  placeholder="Search damaged products by name or brand…"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-full rounded-xl border border-[#CBD5E1] bg-[#EFF6FF]/60 py-1.5 pl-8 pr-8 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 focus:border-[#2563EB] dark:border-[#475569] dark:bg-[#1E293B] dark:text-[#F8FAFC]"
+                />
+                {damagesSearch && (
+                  <button
+                    type="button"
+                    onClick={() => { setDamagesSearch(''); setDebouncedDamagesSearch(''); setDamagesPage(1); }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] text-xs font-bold px-1"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <Select
+                  size="sm"
+                  className="w-36"
+                  value={damagesLocation}
+                  placeholder="All Locations"
+                  options={[
+                    { label: 'All Locations', value: 'ALL' },
+                    { label: 'Warehouse', value: 'WAREHOUSE' },
+                    { label: 'Shop', value: 'SHOP' },
+                  ]}
+                  onChange={(val) => { setDamagesLocation(val as 'ALL' | 'WAREHOUSE' | 'SHOP'); setDamagesPage(1); }}
+                />
+                <Select
+                  size="sm"
+                  className="w-36"
+                  value={damagesMovementType}
+                  placeholder="All Movement Types"
+                  options={[
+                    { label: 'All Types', value: '' },
+                    { label: 'Damaged Stock', value: 'DAMAGE' },
+                    { label: 'Lost Stock', value: 'LOSS' },
+                  ]}
+                  onChange={(val) => { setDamagesMovementType(val as '' | 'DAMAGE' | 'LOSS'); setDamagesPage(1); }}
+                />
+                {(damagesSearch || damagesLocation !== 'ALL' || damagesMovementType) && (
+                  <button
+                    onClick={() => {
+                      setDamagesSearch('');
+                      setDebouncedDamagesSearch('');
+                      setDamagesLocation('ALL');
+                      setDamagesMovementType('');
+                      setDamagesPage(1);
+                    }}
+                    className="rounded-xl border border-[#D2D2D7] bg-white px-2.5 py-1.5 text-xs text-[#1D1D1F] hover:bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E] dark:text-[#F5F5F7]"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* damaged stock table */}
+            <div className="rounded-xl border border-[#E8E8ED] bg-white dark:border-[#38383A] dark:bg-[#1C1C1E]">
+              {/* table header */}
+              <div className="flex items-center justify-between border-b border-[#E8E8ED] px-4 py-2.5 dark:border-[#38383A]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">Damaged & Defective Stock</span>
+                  {!damagesLoading && damagesMeta.total > 0 && (
+                    <Badge variant="danger" size="sm">{damagesMeta.total}</Badge>
+                  )}
+                </div>
+                <Button variant="secondary" size="sm" onClick={fetchDamages} isLoading={damagesLoading}>
+                  Refresh
+                </Button>
+              </div>
+
+              {damagesLoading ? (
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
+                    {Array.from({ length: 5 }).map((_, i) => <SkelRow key={i} cols={8} />)}
+                  </tbody>
+                </table>
+              ) : damagesError ? (
+                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                  <p className="text-xs text-[#CC2B22]">{damagesError}</p>
+                  <Button variant="secondary" size="sm" onClick={fetchDamages}>Retry</Button>
+                </div>
+              ) : damages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <p className="text-sm font-medium text-[#1D1D1F] dark:text-[#F5F5F7]">No damaged or lost stock</p>
+                  <p className="mt-0.5 text-xs text-[#6E6E73]">
+                    {damagesSearch || damagesLocation !== 'ALL' || damagesMovementType
+                      ? 'No records match your filters.'
+                      : 'All products and units are in good condition.'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* desktop view */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Date & Time</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Product</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Location</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Type</th>
+                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Quantity</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Serialized / IMEI</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Reason / Note</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">Reported By</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
+                        {damages.map((d) => (
+                          <tr key={d.id} className="hover:bg-[#F5F5F7] dark:hover:bg-[#2C2C2E]">
+                            <td className="px-4 py-2.5 text-[#6E6E73] whitespace-nowrap">
+                              {formatDate(d.createdAt)}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Link href={`/products/${d.product.id}`} className="font-semibold text-[#1D1D1F] hover:text-[#0071E3] dark:text-[#F5F5F7]">
+                                {d.product.name}
+                              </Link>
+                              <div className="flex items-center gap-1.5 text-[11px] text-[#86868B]">
+                                <span>{d.product.brand}</span>
+                                {d.product.category && <span>· {d.product.category.name}</span>}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Badge variant="info" size="sm">
+                                {d.fromLocation === 'WAREHOUSE' ? 'Warehouse' : d.fromLocation === 'SHOP' ? 'Shop' : (d.fromLocation || '—')}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Badge variant={d.movementType === 'DAMAGE' ? 'danger' : 'warning'} size="sm">
+                                {d.movementType === 'DAMAGE' ? 'Damaged' : 'Lost'}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#DC2626] dark:text-[#EF4444]">
+                              {d.quantity}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {d.units && d.units.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                  {d.units.map((u) => (
+                                    <span key={u.id} className="inline-block rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[10px] font-medium text-[#0F172A] dark:bg-[#334155] dark:text-[#F8FAFC]">
+                                      {u.imei || u.serialNumber || u.id.slice(0, 8)}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[#86868B] text-[11px]">Quantity tracked</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 max-w-xs">
+                              <p className="text-[#1D1D1F] dark:text-[#F5F5F7] truncate">{d.note || '—'}</p>
+                            </td>
+                            <td className="px-4 py-2.5 text-[#6E6E73] whitespace-nowrap">
+                              {d.createdBy?.name || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* mobile view */}
+                  <div className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E] md:hidden">
+                    {damages.map((d) => (
+                      <div key={d.id} className="p-3.5 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <Link href={`/products/${d.product.id}`} className="block truncate text-sm font-semibold text-[#1D1D1F] hover:text-[#0071E3] dark:text-[#F5F5F7]">
+                              {d.product.name}
+                            </Link>
+                            <p className="text-[11px] text-[#86868B]">
+                              {[d.product.brand, d.product.category?.name].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Badge variant={d.movementType === 'DAMAGE' ? 'danger' : 'warning'} size="sm">
+                              {d.movementType === 'DAMAGE' ? 'Damaged' : 'Lost'}
+                            </Badge>
+                            <Badge variant="info" size="sm">
+                              {d.fromLocation === 'WAREHOUSE' ? 'Warehouse' : d.fromLocation === 'SHOP' ? 'Shop' : d.fromLocation}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-lg bg-[#F5F5F7] px-3 py-2 text-xs dark:bg-[#2C2C2E]">
+                          <span className="text-[#6E6E73]">
+                            Quantity: <strong className="font-bold text-[#DC2626] dark:text-[#EF4444]">{d.quantity}</strong>
+                          </span>
+                          <span className="text-[#6E6E73]">{formatDate(d.createdAt)}</span>
+                        </div>
+
+                        {d.units && d.units.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {d.units.map((u) => (
+                              <span key={u.id} className="inline-block rounded bg-[#E2E8F0] px-1.5 py-0.5 font-mono text-[10px] font-medium text-[#0F172A] dark:bg-[#334155] dark:text-[#F8FAFC]">
+                                {u.imei || u.serialNumber || u.id.slice(0, 8)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {d.note && (
+                          <p className="text-xs text-[#6E6E73] italic">"{d.note}"</p>
+                        )}
+                        <p className="text-[10px] text-[#86868B]">Reported by {d.createdBy?.name || 'Unknown'}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* damaged pagination */}
+                  {damagesMeta.totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-[#E8E8ED] bg-[#F5F5F7] px-4 py-2.5 dark:border-[#38383A] dark:bg-[#2C2C2E]">
+                      <span className="text-xs text-[#6E6E73]">
+                        Page {damagesMeta.page} of {damagesMeta.totalPages} · {damagesMeta.total} records
+                      </span>
+                      <div className="flex gap-1.5">
+                        <Button variant="secondary" size="sm" disabled={damagesPage <= 1 || damagesLoading} onClick={() => setDamagesPage((p) => Math.max(1, p - 1))}>
+                          Prev
+                        </Button>
+                        <Button variant="secondary" size="sm" disabled={damagesPage >= damagesMeta.totalPages || damagesLoading} onClick={() => setDamagesPage((p) => p + 1)}>
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* ── stock operation modals ── */}
 
       {/* header "Receive Stock": product=null triggers product-search phase */}
-      <ReceiveStockModal
-        isOpen={isReceiveOpen}
-        product={null}
-        onClose={() => setIsReceiveOpen(false)}
-        onSuccess={() => { showSuccess('Stock received.'); fetchInventory(); fetchSummary(); }}
-      />
-      <ReconcileStockModal
-        isOpen={isReconcileOpen}
-        product={null}
-        onClose={() => setIsReconcileOpen(false)}
-        onSuccess={(msg) => { showSuccess(msg || 'Inventory reconciled.'); fetchInventory(); fetchSummary(); }}
-      />
+      {isReceiveOpen && (
+        <ReceiveStockModal
+          isOpen={isReceiveOpen}
+          product={null}
+          onClose={() => setIsReceiveOpen(false)}
+          onSuccess={() => { showSuccess('Stock received.'); fetchInventory(); fetchSummary(); }}
+        />
+      )}
+      {isReconcileOpen && (
+        <ReconcileStockModal
+          isOpen={isReconcileOpen}
+          product={null}
+          onClose={() => setIsReconcileOpen(false)}
+          onSuccess={(msg) => { showSuccess(msg || 'Inventory reconciled.'); fetchInventory(); fetchSummary(); }}
+        />
+      )}
 
       {/* row-level "Receive Stock": product pre-selected, goes straight to form */}
-      <ReceiveStockModal
-        isOpen={activeModal === 'receive'}
-        product={selectedProduct}
-        onClose={closeModal}
-        onSuccess={() => handleOpSuccess('Stock receipt')}
-      />
-      <ReconcileStockModal
-        isOpen={activeModal === 'reconcile'}
-        product={selectedProduct}
-        onClose={closeModal}
-        onSuccess={(msg) => { showSuccess(msg || 'Inventory reconciled.'); fetchInventory(); fetchSummary(); }}
-      />
-      <TransferStockModal
-        isOpen={activeModal === 'transfer'}
-        product={selectedProduct}
-        onClose={closeModal}
-        onSuccess={() => handleOpSuccess('Transfer')}
-      />
-      <SellStockModal
-        isOpen={activeModal === 'sell'}
-        product={selectedProduct}
-        onClose={closeModal}
-        onSuccess={() => handleOpSuccess('Sale')}
-      />
-      <ReturnStockModal
-        isOpen={activeModal === 'return'}
-        product={selectedProduct}
-        onClose={closeModal}
-        onSuccess={() => handleOpSuccess('Return')}
-      />
-      <DamageLossModal
-        isOpen={activeModal === 'damage'}
-        product={selectedProduct}
-        onClose={closeModal}
-        onSuccess={() => handleOpSuccess('Adjustment')}
-      />
+      {activeModal === 'receive' && (
+        <ReceiveStockModal
+          isOpen={activeModal === 'receive'}
+          product={selectedProduct}
+          onClose={closeModal}
+          onSuccess={() => handleOpSuccess('Stock receipt')}
+        />
+      )}
+      {activeModal === 'reconcile' && (
+        <ReconcileStockModal
+          isOpen={activeModal === 'reconcile'}
+          product={selectedProduct}
+          onClose={closeModal}
+          onSuccess={(msg) => { showSuccess(msg || 'Inventory reconciled.'); fetchInventory(); fetchSummary(); }}
+        />
+      )}
+      {activeModal === 'transfer' && (
+        <TransferStockModal
+          isOpen={activeModal === 'transfer'}
+          product={selectedProduct}
+          onClose={closeModal}
+          onSuccess={() => handleOpSuccess('Transfer')}
+        />
+      )}
+      {activeModal === 'sell' && (
+        <SellStockModal
+          isOpen={activeModal === 'sell'}
+          product={selectedProduct}
+          onClose={closeModal}
+          onSuccess={() => handleOpSuccess('Sale')}
+        />
+      )}
+      {activeModal === 'return' && (
+        <ReturnStockModal
+          isOpen={activeModal === 'return'}
+          product={selectedProduct}
+          onClose={closeModal}
+          onSuccess={() => handleOpSuccess('Return')}
+        />
+      )}
+      {activeModal === 'damage' && (
+        <DamageLossModal
+          isOpen={activeModal === 'damage'}
+          product={selectedProduct}
+          onClose={closeModal}
+          onSuccess={() => handleOpSuccess('Adjustment')}
+        />
+      )}
     </AppShell>
   );
 }

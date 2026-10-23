@@ -18,7 +18,7 @@ export type ProductType =
   | 'SMART_WATCH'
   | 'OTHER';
 export type TrackingType = 'QUANTITY' | 'SERIALIZED';
-export type InventoryStockStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
+export type InventoryStockStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DAMAGED';
 
 export interface User {
   id: string;
@@ -66,6 +66,7 @@ export interface ProductInventorySummary {
   warehouseQuantity: number;
   shopQuantity: number;
   totalQuantity: number;
+  damagedQuantity?: number;
 }
 
 export interface SerializedUnitSummary {
@@ -432,10 +433,55 @@ export interface InventorySummaryData {
   shopUnits: number;
   lowStockProducts: number;
   outOfStockProducts: number;
+  damagedUnits?: number;
 }
 
 export interface InventorySummaryResponse {
   data: InventorySummaryData;
+}
+
+export interface StockDamageUnitItem {
+  id: string;
+  imei?: string | null;
+  serialNumber?: string | null;
+  storage?: number | string | null;
+  color?: string | null;
+  purchasePrice?: number | null;
+  location: Location;
+  status: string;
+}
+
+export interface StockDamageItem {
+  id: string;
+  movementType: MovementType;
+  quantity: number;
+  fromLocation?: Location | null;
+  toLocation?: Location | null;
+  costPrice?: number | null;
+  note?: string | null;
+  createdById: string;
+  createdAt: string;
+  product: {
+    id: string;
+    name: string;
+    brand: string;
+    productType: ProductType;
+    trackingType: TrackingType;
+    sellingPrice: number;
+    category?: { id: string; name: string } | null;
+  };
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+  };
+  units: StockDamageUnitItem[];
+}
+
+export interface StockDamagesResponse {
+  data: StockDamageItem[];
+  meta: PaginationMeta;
 }
 
 /* ─── Stock Operation Request Types ─────────────────────────────────────────── */
