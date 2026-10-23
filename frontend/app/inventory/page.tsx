@@ -664,13 +664,13 @@ export default function InventoryPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
-                        {['Product', 'Category', 'WH', 'Shop', 'Damaged', 'Total', 'Status', 'Tracking', ''].map((h) => (
+                        {['Product', 'Category', 'WH', 'Shop', 'Total', 'Status', 'Tracking', ''].map((h) => (
                           <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F5F5F7] dark:divide-[#2C2C2E]">
-                      {Array.from({ length: 7 }).map((_, i) => <SkelRow key={i} cols={9} />)}
+                      {Array.from({ length: 7 }).map((_, i) => <SkelRow key={i} cols={8} />)}
                     </tbody>
                   </table>
                 </div>
@@ -701,7 +701,7 @@ export default function InventoryPage() {
                     <table className="w-full text-xs" style={{ minWidth: '640px' }}>
                       <thead>
                         <tr className="border-b border-[#E8E8ED] bg-[#F5F5F7] dark:border-[#38383A] dark:bg-[#2C2C2E]">
-                          {['Product', 'Category', 'WH', 'Shop', 'Damaged', 'Total', 'Status', 'Tracking', ''].map((h) => (
+                          {['Product', 'Category', 'WH', 'Shop', 'Total', 'Status', 'Tracking', ''].map((h) => (
                             <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#86868B]">{h}</th>
                           ))}
                         </tr>
@@ -721,9 +721,6 @@ export default function InventoryPage() {
                             </td>
                             <td className="px-4 py-2.5 tabular-nums font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">
                               {p.inventory.shopQuantity}
-                            </td>
-                            <td className="px-4 py-2.5 tabular-nums font-semibold text-[#DC2626] dark:text-[#EF4444]">
-                              {(p.inventory.damagedQuantity ?? 0) > 0 ? p.inventory.damagedQuantity : '—'}
                             </td>
                             <td className="px-4 py-2.5 tabular-nums font-bold text-[#1D1D1F] dark:text-[#F5F5F7]">
                               {p.inventory.totalQuantity}
