@@ -85,6 +85,16 @@ export class ProductsService {
       const shopQuantity = shopRecord ? shopRecord.quantity : 0;
       const totalQuantity = warehouseQuantity + shopQuantity;
 
+      const damagedUnitsCount = (p.productUnits || []).length;
+      const damagedMovementsCount = (p.stockMovements || []).reduce(
+        (acc: number, m: any) => acc + (m.quantity || 0),
+        0,
+      );
+      const damagedQuantity =
+        p.trackingType === TrackingType.SERIALIZED
+          ? damagedUnitsCount
+          : damagedMovementsCount;
+
       let stockStatus: StockStatusFilter;
       if (totalQuantity === 0) {
         stockStatus = StockStatusFilter.OUT_OF_STOCK;
@@ -117,9 +127,28 @@ export class ProductsService {
           warehouseQuantity,
           shopQuantity,
           totalQuantity,
+          damagedQuantity,
         },
         stockStatus,
       };
+    };
+
+    const commonInclude = {
+      category: { select: { id: true, name: true } },
+      inventory: {
+        select: {
+          location: true,
+          quantity: true,
+        },
+      },
+      productUnits: {
+        where: { status: UnitStatus.DAMAGED },
+        select: { id: true },
+      },
+      stockMovements: {
+        where: { movementType: MovementType.DAMAGE },
+        select: { quantity: true },
+      },
     };
 
     if (query.stockStatus === StockStatusFilter.OUT_OF_STOCK) {
@@ -136,10 +165,7 @@ export class ProductsService {
           skip,
           take: limit,
           orderBy: { createdAt: 'desc' },
-          include: {
-            category: { select: { id: true, name: true } },
-            inventory: true,
-          },
+          include: commonInclude,
         }),
         this.prisma.product.count({ where: stockWhere }),
       ]);
@@ -157,10 +183,28 @@ export class ProductsService {
           skip,
           take: limit,
           orderBy: { createdAt: 'desc' },
-          include: {
-            category: { select: { id: true, name: true } },
-            inventory: true,
-          },
+          include: commonInclude,
+        }),
+        this.prisma.product.count({ where: stockWhere }),
+      ]);
+      const data = rawProducts.map(mapProduct);
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+      return { data, meta: { page, limit, total, totalPages } };
+    } else if (query.stockStatus === StockStatusFilter.DAMAGED) {
+      const stockWhere: Prisma.ProductWhereInput = {
+        ...where,
+        OR: [
+          { productUnits: { some: { status: UnitStatus.DAMAGED } } },
+          { stockMovements: { some: { movementType: MovementType.DAMAGE } } },
+        ],
+      };
+      const [rawProducts, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where: stockWhere,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: commonInclude,
         }),
         this.prisma.product.count({ where: stockWhere }),
       ]);
@@ -171,10 +215,7 @@ export class ProductsService {
       const allMatchingProducts = await this.prisma.product.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        include: {
-          category: { select: { id: true, name: true } },
-          inventory: true,
-        },
+        include: commonInclude,
       });
       const mapped = allMatchingProducts.map(mapProduct);
       const filtered = mapped.filter((p) => p.stockStatus === query.stockStatus);
@@ -191,15 +232,7 @@ export class ProductsService {
           orderBy: {
             createdAt: 'desc',
           },
-          include: {
-            category: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            inventory: true,
-          },
+          include: commonInclude,
         }),
         this.prisma.product.count({ where }),
       ]);
@@ -437,6 +470,12 @@ export class ProductsService {
         warehouseQuantity,
         shopQuantity,
         totalQuantity,
+        damagedQuantity:
+          product.trackingType === TrackingType.SERIALIZED
+            ? (product.productUnits || []).filter(
+                (u) => u.status === UnitStatus.DAMAGED,
+              ).length
+            : movementSummary.damages,
       },
       stockStatus,
       unitSummary,

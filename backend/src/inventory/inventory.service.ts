@@ -19,10 +19,7 @@ export class InventoryService {
     productWhere: Prisma.ProductWhereInput = {},
   ) {
     const products = await this.prisma.product.findMany({
-      where: {
-        ...productWhere,
-        isActive: true, // Only process active products
-      },
+      where: productWhere,
       include: {
         category: true,
         inventory: true,
@@ -74,7 +71,6 @@ export class InventoryService {
   }
 
   async findInventory(query: QueryInventoryDto) {
-    const activeFilter = query.isActive !== undefined ? query.isActive : true;
     const page = query.page && query.page >= 1 ? Number(query.page) : 1;
     const limit =
       query.limit && query.limit >= 1 && query.limit <= 100
@@ -82,9 +78,11 @@ export class InventoryService {
         : 20;
     const skip = (page - 1) * limit;
 
-    const productWhere: Prisma.ProductWhereInput = {
-      isActive: activeFilter,
-    };
+    const productWhere: Prisma.ProductWhereInput = {};
+
+    if (query.isActive !== undefined) {
+      productWhere.isActive = query.isActive;
+    }
 
     if (query.productId) {
       productWhere.id = query.productId;
@@ -108,191 +106,89 @@ export class InventoryService {
 
     const targetStatus = query.stockStatus || query.status;
 
-    // Optimized fast-path: DB-level pagination when post-filtering on computed stockStatus is not required
-    if (!query.location && !targetStatus && query.lowStock === undefined) {
-      const [products, total] = await Promise.all([
-        this.prisma.product.findMany({
-          where: productWhere,
-          skip,
-          take: limit,
-          orderBy: {
-            createdAt: 'desc',
-          },
-          include: {
-            category: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            inventory: true,
-            productUnits: {
-              where: {
-                OR: [
-                  {
-                    location: Location.WAREHOUSE,
-                    status: UnitStatus.AVAILABLE,
-                  },
-                  {
-                    location: Location.SHOP,
-                    status: UnitStatus.IN_SHOP,
-                  },
-                ],
-              },
-              select: {
-                id: true,
-                location: true,
-                status: true,
-              },
-            },
-          },
-        }),
-        this.prisma.product.count({ where: productWhere }),
-      ]);
-
-      const data = products.map((product) => {
-        const warehouseRecord = product.inventory.find(
-          (i) => i.location === Location.WAREHOUSE,
-        );
-        const shopRecord = product.inventory.find(
-          (i) => i.location === Location.SHOP,
-        );
-
-        const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
-        const shopQuantity = shopRecord ? shopRecord.quantity : 0;
-        const totalQuantity = warehouseQuantity + shopQuantity;
-
-        let stockStatus: InventoryStockStatus;
-        if (totalQuantity === 0) {
-          stockStatus = InventoryStockStatus.OUT_OF_STOCK;
-        } else if (totalQuantity <= product.minimumStock) {
-          stockStatus = InventoryStockStatus.LOW_STOCK;
-        } else {
-          stockStatus = InventoryStockStatus.IN_STOCK;
-        }
-
-        let unitSummary: {
-          totalAvailable: number;
-          warehouseAvailable: number;
-          shopAvailable: number;
-        } | null = null;
-
-        if (product.trackingType === TrackingType.SERIALIZED) {
-          let warehouseAvailable = 0;
-          let shopAvailable = 0;
-
-          for (const u of product.productUnits || []) {
-            if (
-              u.location === Location.WAREHOUSE &&
-              u.status === UnitStatus.AVAILABLE
-            ) {
-              warehouseAvailable++;
-            } else if (
-              u.location === Location.SHOP &&
-              u.status === UnitStatus.IN_SHOP
-            ) {
-              shopAvailable++;
-            }
-          }
-
-          unitSummary = {
-            totalAvailable: warehouseAvailable + shopAvailable,
-            warehouseAvailable,
-            shopAvailable,
-          };
-        }
-
-        return {
-          product: {
-            id: product.id,
-            name: product.name,
-            brand: product.brand,
-            productType: product.productType,
-            trackingType: product.trackingType,
-            sellingPrice: product.sellingPrice
-              ? Number(product.sellingPrice)
-              : 0,
-            minimumStock: product.minimumStock,
-            isActive: product.isActive,
-            category: product.category
-              ? {
-                  id: product.category.id,
-                  name: product.category.name,
-                }
-              : null,
-          },
-          inventory: {
-            warehouseQuantity,
-            shopQuantity,
-            totalQuantity,
-          },
-          unitSummary,
-          stockStatus,
-        };
-      });
-
-      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
-
-      return {
-        data,
-        meta: {
-          page,
-          limit,
-          total,
-          totalPages,
+    if (query.location === Location.WAREHOUSE) {
+      productWhere.inventory = {
+        some: {
+          location: Location.WAREHOUSE,
+          quantity: { gt: 0 },
+        },
+      };
+    } else if (query.location === Location.SHOP) {
+      productWhere.inventory = {
+        some: {
+          location: Location.SHOP,
+          quantity: { gt: 0 },
         },
       };
     }
 
-    // Fallback path when in-memory post-filtering by computed status/location is active
-    const products = await this.prisma.product.findMany({
-      where: productWhere,
-      include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-          },
+    if (targetStatus === InventoryStockStatus.IN_STOCK) {
+      productWhere.inventory = {
+        some: {
+          quantity: { gt: 0 },
+          ...(query.location ? { location: query.location } : {}),
         },
-        inventory: true,
-        productUnits: {
-          where: {
-            OR: [
-              {
-                location: Location.WAREHOUSE,
-                status: UnitStatus.AVAILABLE,
-              },
-              {
-                location: Location.SHOP,
-                status: UnitStatus.IN_SHOP,
-              },
-            ],
-          },
-          select: {
-            id: true,
-            location: true,
-            status: true,
-          },
+      };
+    } else if (targetStatus === InventoryStockStatus.OUT_OF_STOCK) {
+      productWhere.OR = [
+        { inventory: { none: {} } },
+        { inventory: { every: { quantity: 0 } } },
+      ];
+    } else if (targetStatus === InventoryStockStatus.DAMAGED) {
+      productWhere.OR = [
+        { productUnits: { some: { status: UnitStatus.DAMAGED } } },
+        { stockMovements: { some: { movementType: MovementType.DAMAGE } } },
+      ];
+    }
+
+    const commonInclude = {
+      category: {
+        select: {
+          id: true,
+          name: true,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
+      inventory: {
+        select: {
+          location: true,
+          quantity: true,
+        },
       },
-    });
+      productUnits: {
+        where: {
+          status: UnitStatus.DAMAGED,
+        },
+        select: {
+          id: true,
+        },
+      },
+      stockMovements: {
+        where: { movementType: MovementType.DAMAGE },
+        select: { quantity: true },
+      },
+    };
 
-    const results: any[] = [];
-
-    for (const product of products) {
-      const warehouseRecord = product.inventory.find(
-        (i) => i.location === Location.WAREHOUSE,
+    const mapProduct = (product: any) => {
+      const warehouseRecord = product.inventory?.find(
+        (i: any) => i.location === Location.WAREHOUSE,
       );
-      const shopRecord = product.inventory.find(
-        (i) => i.location === Location.SHOP,
+      const shopRecord = product.inventory?.find(
+        (i: any) => i.location === Location.SHOP,
       );
 
       const warehouseQuantity = warehouseRecord ? warehouseRecord.quantity : 0;
       const shopQuantity = shopRecord ? shopRecord.quantity : 0;
       const totalQuantity = warehouseQuantity + shopQuantity;
+
+      const damagedUnits = (product.productUnits || []).length;
+      const damagedMovements = (product.stockMovements || []).reduce(
+        (acc: number, m: any) => acc + (m.quantity || 0),
+        0,
+      );
+      const damagedQuantity =
+        product.trackingType === TrackingType.SERIALIZED
+          ? damagedUnits
+          : damagedMovements;
 
       let stockStatus: InventoryStockStatus;
       if (totalQuantity === 0) {
@@ -303,32 +199,6 @@ export class InventoryService {
         stockStatus = InventoryStockStatus.IN_STOCK;
       }
 
-      if (query.location) {
-        if (
-          query.location === Location.WAREHOUSE &&
-          warehouseQuantity <= 0
-        ) {
-          continue;
-        }
-        if (query.location === Location.SHOP && shopQuantity <= 0) {
-          continue;
-        }
-      }
-
-      if (targetStatus && stockStatus !== targetStatus) {
-        continue;
-      }
-
-      if (query.lowStock !== undefined) {
-        const isLowStock = totalQuantity <= product.minimumStock;
-        if (query.lowStock === true && !isLowStock) {
-          continue;
-        }
-        if (query.lowStock === false && isLowStock) {
-          continue;
-        }
-      }
-
       let unitSummary: {
         totalAvailable: number;
         warehouseAvailable: number;
@@ -336,31 +206,14 @@ export class InventoryService {
       } | null = null;
 
       if (product.trackingType === TrackingType.SERIALIZED) {
-        let warehouseAvailable = 0;
-        let shopAvailable = 0;
-
-        for (const u of product.productUnits || []) {
-          if (
-            u.location === Location.WAREHOUSE &&
-            u.status === UnitStatus.AVAILABLE
-          ) {
-            warehouseAvailable++;
-          } else if (
-            u.location === Location.SHOP &&
-            u.status === UnitStatus.IN_SHOP
-          ) {
-            shopAvailable++;
-          }
-        }
-
         unitSummary = {
-          totalAvailable: warehouseAvailable + shopAvailable,
-          warehouseAvailable,
-          shopAvailable,
+          totalAvailable: warehouseQuantity + shopQuantity,
+          warehouseAvailable: warehouseQuantity,
+          shopAvailable: shopQuantity,
         };
       }
 
-      results.push({
+      return {
         product: {
           id: product.id,
           name: product.name,
@@ -383,16 +236,70 @@ export class InventoryService {
           warehouseQuantity,
           shopQuantity,
           totalQuantity,
+          damagedQuantity,
         },
         unitSummary,
         stockStatus,
-      });
+      };
+    };
+
+    // Fast-path: When status is not LOW_STOCK and lowStock boolean is not requested,
+    // all filtering is performed directly in PostgreSQL!
+    if (targetStatus !== InventoryStockStatus.LOW_STOCK && query.lowStock === undefined) {
+      const [products, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where: productWhere,
+          skip,
+          take: limit,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          include: commonInclude,
+        }),
+        this.prisma.product.count({ where: productWhere }),
+      ]);
+
+      const data = products.map(mapProduct);
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+      };
     }
 
-    const total = results.length;
+    // In-memory post-filtering only when dynamic minimumStock comparison is needed
+    const products = await this.prisma.product.findMany({
+      where: {
+        ...productWhere,
+        inventory: { some: { quantity: { gt: 0 } } },
+      },
+      include: commonInclude,
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const mapped = products.map(mapProduct);
+    const filtered = mapped.filter((p) => {
+      if (targetStatus === InventoryStockStatus.LOW_STOCK) {
+        return p.stockStatus === InventoryStockStatus.LOW_STOCK;
+      }
+      if (query.lowStock !== undefined) {
+        const isLow = p.inventory.totalQuantity <= p.product.minimumStock;
+        return query.lowStock ? isLow : !isLow;
+      }
+      return true;
+    });
+
+    const total = filtered.length;
     const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
-    const startIndex = (page - 1) * limit;
-    const data = results.slice(startIndex, startIndex + limit);
+    const data = filtered.slice(skip, skip + limit);
 
     return {
       data,
@@ -406,11 +313,46 @@ export class InventoryService {
   }
 
   async getSummary() {
-    const items = await this.getProcessedInventoryItems();
+    const [whAgg, shopAgg, damagedUnitsCount, damagedMovementsCount, products] = await Promise.all([
+      this.prisma.inventory.aggregate({
+        where: { location: Location.WAREHOUSE },
+        _sum: { quantity: true },
+      }),
+      this.prisma.inventory.aggregate({
+        where: { location: Location.SHOP },
+        _sum: { quantity: true },
+      }),
+      this.prisma.productUnit.count({
+        where: { status: UnitStatus.DAMAGED },
+      }),
+      this.prisma.stockMovement.aggregate({
+        where: { movementType: MovementType.DAMAGE },
+        _sum: { quantity: true },
+      }),
+      this.prisma.product.findMany({
+        select: {
+          id: true,
+          name: true,
+          brand: true,
+          productType: true,
+          trackingType: true,
+          minimumStock: true,
+          inventory: {
+            select: {
+              location: true,
+              quantity: true,
+            },
+          },
+        },
+      }),
+    ]);
 
-    let totalUnits = 0;
-    let warehouseUnits = 0;
-    let shopUnits = 0;
+    const warehouseUnits = whAgg._sum.quantity || 0;
+    const shopUnits = shopAgg._sum.quantity || 0;
+    const totalUnits = warehouseUnits + shopUnits;
+    const damagedUnits =
+      damagedUnitsCount + (damagedMovementsCount._sum.quantity || 0);
+
     let lowStockProducts = 0;
     let outOfStockProducts = 0;
 
@@ -430,52 +372,46 @@ export class InventoryService {
 
     const lowStockItems: any[] = [];
 
-    for (const item of items) {
-      warehouseUnits += item.warehouseQuantity;
-      shopUnits += item.shopQuantity;
-      totalUnits += item.totalQuantity;
+    for (const p of products) {
+      const wh = p.inventory?.find((i) => i.location === Location.WAREHOUSE)?.quantity || 0;
+      const sh = p.inventory?.find((i) => i.location === Location.SHOP)?.quantity || 0;
+      const tot = wh + sh;
 
-      if (item.stockStatus === InventoryStockStatus.OUT_OF_STOCK) {
+      if (tot === 0) {
         outOfStockProducts++;
         lowStockItems.push({
-          productId: item.product.id,
-          name: item.product.name,
-          brand: item.product.brand,
-          productType: item.product.productType,
-          trackingType: item.product.trackingType,
-          warehouseQuantity: item.warehouseQuantity,
-          shopQuantity: item.shopQuantity,
-          totalQuantity: item.totalQuantity,
-          minimumStock: item.minimumStock,
+          productId: p.id,
+          name: p.name,
+          brand: p.brand,
+          productType: p.productType,
+          trackingType: p.trackingType,
+          warehouseQuantity: wh,
+          shopQuantity: sh,
+          totalQuantity: tot,
+          minimumStock: p.minimumStock,
           stockStatus: InventoryStockStatus.OUT_OF_STOCK,
         });
-      } else if (item.stockStatus === InventoryStockStatus.LOW_STOCK) {
+      } else if (tot <= p.minimumStock) {
         lowStockProducts++;
         lowStockItems.push({
-          productId: item.product.id,
-          name: item.product.name,
-          brand: item.product.brand,
-          productType: item.product.productType,
-          trackingType: item.product.trackingType,
-          warehouseQuantity: item.warehouseQuantity,
-          shopQuantity: item.shopQuantity,
-          totalQuantity: item.totalQuantity,
-          minimumStock: item.minimumStock,
+          productId: p.id,
+          name: p.name,
+          brand: p.brand,
+          productType: p.productType,
+          trackingType: p.trackingType,
+          warehouseQuantity: wh,
+          shopQuantity: sh,
+          totalQuantity: tot,
+          minimumStock: p.minimumStock,
           stockStatus: InventoryStockStatus.LOW_STOCK,
         });
       }
 
-      if (
-        item.product.productType &&
-        byProductType[item.product.productType as ProductType] !== undefined
-      ) {
-        byProductType[item.product.productType as ProductType]++;
+      if (p.productType && byProductType[p.productType] !== undefined) {
+        byProductType[p.productType]++;
       }
-      if (
-        item.product.trackingType &&
-        byTrackingType[item.product.trackingType as TrackingType] !== undefined
-      ) {
-        byTrackingType[item.product.trackingType as TrackingType]++;
+      if (p.trackingType && byTrackingType[p.trackingType] !== undefined) {
+        byTrackingType[p.trackingType]++;
       }
     }
 
@@ -491,12 +427,13 @@ export class InventoryService {
     });
 
     return {
-      totalProducts: items.length,
+      totalProducts: products.length,
       totalUnits,
       warehouseUnits,
       shopUnits,
       lowStockProducts,
       outOfStockProducts,
+      damagedUnits,
       byProductType,
       byTrackingType,
       byLocation: {
