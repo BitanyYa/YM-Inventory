@@ -83,7 +83,7 @@ export const AllocateProductModal: React.FC<AllocateProductModalProps> = ({
       setError(null);
       try {
         const [inventoryRes, categoriesData] = await Promise.all([
-          inventoryService.getInventory({ limit: 100 }),
+          inventoryService.getInventory({ limit: 100, trackingType: 'QUANTITY', isActive: true, location: 'SHOP' }),
           categoryService.getCategories(),
         ]);
 

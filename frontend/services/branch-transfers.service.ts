@@ -11,13 +11,32 @@ import {
   ReverseBranchTransferResponse,
 } from '../types/api';
 
+let cachedBranches: Branch[] | null = null;
+let branchesPromise: Promise<Branch[]> | null = null;
+
 export const branchTransfersService = {
   /**
    * GET /branch-transfers/branches
    * Retrieve list of active physical branches (Atlas, Aberus, Garad).
    */
-  async getBranches(): Promise<Branch[]> {
-    return apiClient<Branch[]>('/branch-transfers/branches');
+  async getBranches(forceRefresh = false): Promise<Branch[]> {
+    if (!forceRefresh && cachedBranches) {
+      return cachedBranches;
+    }
+    if (!forceRefresh && branchesPromise) {
+      return branchesPromise;
+    }
+    branchesPromise = apiClient<Branch[]>('/branch-transfers/branches')
+      .then((data) => {
+        cachedBranches = data;
+        branchesPromise = null;
+        return data;
+      })
+      .catch((err) => {
+        branchesPromise = null;
+        throw err;
+      });
+    return branchesPromise;
   },
 
   /**

@@ -741,19 +741,23 @@ export default function BranchTransfersPage() {
         </div>
 
         {/* Transfer Action Modal */}
-        <TransferToBranchModal
-          isOpen={isTransferModalOpen}
-          onClose={() => setIsTransferModalOpen(false)}
-          onSuccess={handleSuccessTransfer}
-        />
+        {isTransferModalOpen && (
+          <TransferToBranchModal
+            isOpen={isTransferModalOpen}
+            onClose={() => setIsTransferModalOpen(false)}
+            onSuccess={handleSuccessTransfer}
+          />
+        )}
 
         {/* Reverse Branch Transfer Modal */}
-        <ReverseBranchTransferModal
-          isOpen={!!selectedTransferForReversal}
-          transfer={selectedTransferForReversal}
-          onClose={() => setSelectedTransferForReversal(null)}
-          onSuccess={handleSuccessReversal}
-        />
+        {selectedTransferForReversal && (
+          <ReverseBranchTransferModal
+            isOpen={!!selectedTransferForReversal}
+            transfer={selectedTransferForReversal}
+            onClose={() => setSelectedTransferForReversal(null)}
+            onSuccess={handleSuccessReversal}
+          />
+        )}
       </div>
     </AppShell>
   );

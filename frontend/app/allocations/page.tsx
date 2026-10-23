@@ -761,19 +761,23 @@ export default function AllocationsPage() {
         </div>
 
         {/* Allocate Product Modal */}
-        <AllocateProductModal
-          isOpen={isAllocateModalOpen}
-          onClose={() => setIsAllocateModalOpen(false)}
-          onSuccess={handleSuccessAllocation}
-        />
+        {isAllocateModalOpen && (
+          <AllocateProductModal
+            isOpen={isAllocateModalOpen}
+            onClose={() => setIsAllocateModalOpen(false)}
+            onSuccess={handleSuccessAllocation}
+          />
+        )}
 
         {/* Reverse Allocation Modal */}
-        <ReverseAllocationModal
-          isOpen={!!selectedAllocationForReversal}
-          allocation={selectedAllocationForReversal}
-          onClose={() => setSelectedAllocationForReversal(null)}
-          onSuccess={handleSuccessReversal}
-        />
+        {selectedAllocationForReversal && (
+          <ReverseAllocationModal
+            isOpen={!!selectedAllocationForReversal}
+            allocation={selectedAllocationForReversal}
+            onClose={() => setSelectedAllocationForReversal(null)}
+            onSuccess={handleSuccessReversal}
+          />
+        )}
       </div>
     </AppShell>
   );

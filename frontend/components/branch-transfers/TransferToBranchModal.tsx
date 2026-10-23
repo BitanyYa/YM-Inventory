@@ -42,7 +42,7 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
       try {
         const [branchesData, inventoryRes, categoriesData] = await Promise.all([
           branchTransfersService.getBranches(),
-          inventoryService.getInventory({ limit: 100 }),
+          inventoryService.getInventory({ limit: 100, trackingType: 'QUANTITY', isActive: true, location: 'SHOP' }),
           categoryService.getCategories(),
         ]);
 

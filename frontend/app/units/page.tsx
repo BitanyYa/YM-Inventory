@@ -69,6 +69,7 @@ export default function UnitsPage() {
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reqIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   /* ── Modal state ── */
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
@@ -91,7 +92,7 @@ export default function UnitsPage() {
   /* ── Fetch units ── */
   const fetchUnits = useCallback(async () => {
     const currentReqId = ++reqIdRef.current;
-    if (units.length === 0) {
+    if (!hasLoadedRef.current) {
       setIsLoading(true);
     }
     setIsFetching(true);
@@ -134,6 +135,7 @@ export default function UnitsPage() {
           total: items.length,
           totalPages: Math.ceil(items.length / 20) || 1,
         });
+        hasLoadedRef.current = true;
       }
     } catch (err: unknown) {
       if (currentReqId === reqIdRef.current) {
@@ -145,7 +147,7 @@ export default function UnitsPage() {
         setIsFetching(false);
       }
     }
-  }, [page, debouncedSearch, statusFilter, locationFilter, productTypeFilter, categoryIdFilter, units.length]);
+  }, [page, debouncedSearch, statusFilter, locationFilter, productTypeFilter, categoryIdFilter]);
 
   useEffect(() => {
     fetchUnits();
@@ -416,14 +418,16 @@ export default function UnitsPage() {
         )}
 
         {/* Unit Details & Lifecycle History Modal */}
-        <UnitDetailsModal
-          unitId={selectedUnitId}
-          isOpen={isDetailOpen}
-          onClose={() => {
-            setIsDetailOpen(false);
-            setSelectedUnitId(null);
-          }}
-        />
+        {isDetailOpen && (
+          <UnitDetailsModal
+            unitId={selectedUnitId}
+            isOpen={isDetailOpen}
+            onClose={() => {
+              setIsDetailOpen(false);
+              setSelectedUnitId(null);
+            }}
+          />
+        )}
 
       </div>
     </AppShell>

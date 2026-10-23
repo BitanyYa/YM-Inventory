@@ -27,6 +27,7 @@ function StockBadge({ status }: { status: string }) {
   if (status === 'IN_STOCK') return <Badge variant="success" size="sm">In Stock</Badge>;
   if (status === 'LOW_STOCK') return <Badge variant="warning" size="sm">Low Stock</Badge>;
   if (status === 'OUT_OF_STOCK') return <Badge variant="danger" size="sm">Out of Stock</Badge>;
+  if (status === 'DAMAGED') return <Badge variant="danger" size="sm">Damaged</Badge>;
   return <Badge variant="neutral" size="sm">{status}</Badge>;
 }
 
@@ -35,6 +36,7 @@ function UnitStatusBadge({ status }: { status: string }) {
   if (status === 'IN_SHOP') return <Badge variant="info" size="sm">In Shop</Badge>;
   if (status === 'SOLD') return <Badge variant="neutral" size="sm">Sold</Badge>;
   if (status === 'RETURNED') return <Badge variant="warning" size="sm">Returned</Badge>;
+  if (status === 'DAMAGED') return <Badge variant="danger" size="sm">Damaged</Badge>;
   return <Badge variant="danger" size="sm">{status.replace('_', ' ')}</Badge>;
 }
 
@@ -105,9 +107,12 @@ export default function ProductDetailPage() {
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <h2 className="text-base font-semibold text-[#1D1D1F] dark:text-[#F5F5F7]">{product.name}</h2>
               <Badge variant={product.isActive ? 'success' : 'neutral'} size="sm">
-                {product.isActive ? 'Active' : 'Inactive'}
+                {product.isActive ? 'Active' : 'Deactivated'}
               </Badge>
               <StockBadge status={product.stockStatus} />
+              {(inv.damagedQuantity ?? 0) > 0 && (
+                <Badge variant="danger" size="sm">{inv.damagedQuantity} Damaged</Badge>
+              )}
             </div>
             <p className="mt-0.5 text-xs text-[#6E6E73]">
               {product.brand}
@@ -142,16 +147,17 @@ export default function ProductDetailPage() {
         )}
 
         {/* stats row */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {[
             { label: 'Selling Price', value: formatCurrency(product.sellingPrice) },
             { label: 'Warehouse', value: inv.warehouseQuantity },
             { label: 'Shop', value: inv.shopQuantity },
-            { label: 'Total', value: inv.totalQuantity },
+            { label: 'Damaged', value: inv.damagedQuantity ?? 0, alert: (inv.damagedQuantity ?? 0) > 0 },
+            { label: 'Total Stock', value: inv.totalQuantity },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-[#E8E8ED] bg-white px-3 py-2.5 dark:border-[#38383A] dark:bg-[#1C1C1E]">
               <p className="text-[10px] font-medium text-[#86868B]">{s.label}</p>
-              <p className="mt-0.5 text-lg font-bold tabular-nums text-[#1D1D1F] dark:text-[#F5F5F7]">{s.value}</p>
+              <p className={`mt-0.5 text-lg font-bold tabular-nums ${s.alert ? 'text-[#DC2626] dark:text-[#EF4444]' : 'text-[#1D1D1F] dark:text-[#F5F5F7]'}`}>{s.value}</p>
             </div>
           ))}
         </div>
@@ -276,30 +282,46 @@ export default function ProductDetailPage() {
       </div>
 
       {/* modals */}
-      <EditProductModal product={product} isOpen={isEditOpen} onClose={() => setIsEditOpen(false)}
-        onSuccess={() => { showSuccess('Product updated.'); fetchProduct(); }} />
-      <ReceiveStockModal isOpen={stockModal === 'receive'} product={productAsInventory}
-        onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Receipt')} />
-      <TransferStockModal isOpen={stockModal === 'transfer'} product={productAsInventory}
-        onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Transfer')} />
-      <SellStockModal isOpen={stockModal === 'sell'} product={productAsInventory}
-        onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Sale')} />
-      <ReturnStockModal isOpen={stockModal === 'return'} product={productAsInventory}
-        onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Return')} />
-      <DamageLossModal isOpen={stockModal === 'damage'} product={productAsInventory}
-        onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Adjustment')} />
-      <ReconcileStockModal isOpen={stockModal === 'reconcile'} product={productAsInventory}
-        onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Reconciliation')} />
+      {isEditOpen && (
+        <EditProductModal product={product} isOpen={isEditOpen} onClose={() => setIsEditOpen(false)}
+          onSuccess={() => { showSuccess('Product updated.'); fetchProduct(); }} />
+      )}
+      {stockModal === 'receive' && (
+        <ReceiveStockModal isOpen={stockModal === 'receive'} product={productAsInventory}
+          onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Receipt')} />
+      )}
+      {stockModal === 'transfer' && (
+        <TransferStockModal isOpen={stockModal === 'transfer'} product={productAsInventory}
+          onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Transfer')} />
+      )}
+      {stockModal === 'sell' && (
+        <SellStockModal isOpen={stockModal === 'sell'} product={productAsInventory}
+          onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Sale')} />
+      )}
+      {stockModal === 'return' && (
+        <ReturnStockModal isOpen={stockModal === 'return'} product={productAsInventory}
+          onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Return')} />
+      )}
+      {stockModal === 'damage' && (
+        <DamageLossModal isOpen={stockModal === 'damage'} product={productAsInventory}
+          onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Adjustment')} />
+      )}
+      {stockModal === 'reconcile' && (
+        <ReconcileStockModal isOpen={stockModal === 'reconcile'} product={productAsInventory}
+          onClose={() => setStockModal(null)} onSuccess={() => handleOpSuccess('Reconciliation')} />
+      )}
       
       {/* Unit details and history modal */}
-      <UnitDetailsModal
-        unitId={selectedUnitId}
-        isOpen={isUnitModalOpen}
-        onClose={() => {
-          setIsUnitModalOpen(false);
-          setSelectedUnitId(null);
-        }}
-      />
+      {isUnitModalOpen && (
+        <UnitDetailsModal
+          unitId={selectedUnitId}
+          isOpen={isUnitModalOpen}
+          onClose={() => {
+            setIsUnitModalOpen(false);
+            setSelectedUnitId(null);
+          }}
+        />
+      )}
     </AppShell>
   );
 }
