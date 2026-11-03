@@ -32,6 +32,7 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
   const [isLoadingInitial, setIsLoadingInitial] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -95,10 +96,15 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
   const isQuantityValid =
     !isNaN(numQuantity) && numQuantity >= 1 && numQuantity <= shopAvailable && shopAvailable > 0;
 
-  const resetForm = () => {
+  const resetTransientFields = () => {
     setQuantity('1');
     setNote('');
     setError(null);
+    setSuccessMessage(null);
+  };
+
+  const resetForm = () => {
+    resetTransientFields();
   };
 
   const handleClose = () => {
@@ -112,6 +118,7 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
 
     setIsSubmitting(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       await branchTransfersService.transferToBranch({
@@ -123,9 +130,31 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
 
       invalidateInventoryCache();
       productService.clearCache();
-      resetForm();
+      // Refresh stock data so updated quantity shows immediately
+      const [branchesData, inventoryRes, categoriesData] = await Promise.all([
+        branchTransfersService.getBranches(),
+        inventoryService.getInventory({ limit: 100, trackingType: 'QUANTITY', isActive: true, location: 'SHOP' }),
+        categoryService.getCategories(),
+      ]);
+      const enabledCategoryIds = new Set(
+        (categoriesData || []).filter((c) => c.allocationEnabled).map((c) => c.id),
+      );
+      const activeBranches = (branchesData || []).filter((b) => b.isActive);
+      setBranches(activeBranches);
+      const eligibleProducts = (inventoryRes.data || []).filter(
+        (item) =>
+          item.isActive &&
+          item.trackingType === 'QUANTITY' &&
+          (!item.category ||
+            item.category.allocationEnabled === true ||
+            enabledCategoryIds.has(item.category.id)),
+      );
+      setTransferableProducts(eligibleProducts);
+      setSuccessMessage(
+        `✓ Transferred ${numQuantity} × ${selectedProduct?.name} to ${selectedBranch?.name}.`,
+      );
+      resetTransientFields();
       onSuccess();
-      onClose();
     } catch (err: unknown) {
       setError((err as { message?: string })?.message || 'Failed to transfer stock to branch.');
     } finally {
@@ -176,6 +205,13 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
             <div className="flex items-start gap-2 rounded-xl border border-[#FF3B30]/20 bg-[#FFECEB] p-3 text-xs text-[#CC2B22] dark:border-[#FF453A]/20 dark:bg-[#2E0A09] dark:text-[#FF453A]">
               <AlertTriangleIcon size={14} className="mt-0.5 shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="flex items-center gap-2 rounded-xl border border-[#34C759]/30 bg-[#F0FFF4] p-3 text-xs text-[#1A7F37] dark:border-[#30D158]/30 dark:bg-[#0A2E14] dark:text-[#30D158]">
+              <span>{successMessage}</span>
+              <span className="ml-auto text-[10px] text-[#6E6E73] dark:text-[#86868B]">Form ready for next transfer</span>
             </div>
           )}
 
@@ -284,7 +320,7 @@ export const TransferToBranchModal: React.FC<TransferToBranchModalProps> = ({
               onClick={handleClose}
               disabled={isSubmitting}
             >
-              Cancel
+              {successMessage ? 'Done' : 'Cancel'}
             </Button>
             <Button
               variant="primary"
